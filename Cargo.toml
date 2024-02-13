@@ -1,0 +1,20 @@
+[package]
+name = "patchify"
+version = "0.0.1"
+description = "Support for running applications to automatically update themselves"
+categories = ["config", "filesystem"]
+keywords = ["auto-update", "library", "updater"]
+edition = "2021"
+license = "MIT"
+authors = ["Dan Williams <dan@dotfive.co.uk>"]
+repository = "https://github.com/danwilliams/patchify"
+readme = "README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[profile.release]
+strip = true     # Automatically strip symbols from the binary
+opt-level = 3    # Maximum optimisation (this is the cargo default)
+lto = "thin"     # Enable link-time optimisation (fast)
+
+[dependencies]
