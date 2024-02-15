@@ -2,14 +2,25 @@
 
 //		Packages
 
+use assert_json_diff::assert_json_eq;
 use axum::{
+	Extension,
 	Router,
 	Server,
-	http::{HeaderMap, StatusCode},
+	http::{HeaderMap, StatusCode, header::CONTENT_TYPE},
 	routing::get,
 };
 use bytes::Bytes;
+use patchify::server::{
+	Axum as Patchify,
+	Config as PatchifyConfig,
+	Core as PatchifyCore,
+};
 use reqwest::Client;
+use rubedo::sugar::s;
+use semver::Version;
+use serde_json::{Value as JsonValue, json};
+use sha2::{Sha256, Digest};
 use std::{
 	io::stdout,
 	net::{IpAddr, SocketAddr},
@@ -69,10 +80,27 @@ fn initialize() {
 
 //		create_server															
 async fn create_server() -> SocketAddr {
+	let version_data = vec![
+		(Version::new(1, 0, 0), "foo"),
+		(Version::new(0, 1, 0), "bar"),
+		(Version::new(0, 0, 1), "baz"),
+		(Version::new(1, 1, 0), "foobar"),
+		(Version::new(0, 2, 0), "foobaz"),
+	];
+	let patchify = PatchifyCore::new(PatchifyConfig {
+		appname:  s!("test"),
+		versions: version_data.iter()
+			.map(|(version, data)| (version.clone(), Sha256::digest(data).into()))
+			.collect()
+		,
+	});
 	let app = Router::new()
-		.route("/api/ping", get(get_ping))
+		.route("/api/ping",            get(get_ping))
+		.route("/api/latest",          get(Patchify::get_latest_version))
+		.route("/api/hashes/:version", get(Patchify::get_hash_for_version))
 		.with_state(Arc::new(AppState {
 		}))
+		.layer(Extension(Arc::new(patchify)))
 		.layer(TraceLayer::new_for_http()
 			.on_request(
 				DefaultOnRequest::new()
@@ -104,6 +132,16 @@ async fn create_server() -> SocketAddr {
 //		get_ping																
 async fn get_ping() {}
 
+//		request																	
+async fn request(path: String) -> (StatusCode, String, String) {
+	let address      = spawn(async { create_server().await }).await.unwrap();
+	let response     = Client::new().get(format!("http://{address}/{path}")).send().await.unwrap();
+	let status       = response.status();
+	let content_type = response.headers().get(CONTENT_TYPE).and_then(|h| h.to_str().ok()).unwrap_or("").to_owned();
+	let body         = response.text().await.unwrap();
+	(status, content_type, body)
+}
+
 
 
 //		Tests
@@ -116,10 +154,54 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_ping() {
 		initialize();
-		let address  = spawn(async { create_server().await }).await.unwrap();
-		let response = Client::new().get(format!("http://{address}/api/ping")).send().await.unwrap();
-		assert_eq!(response.status(),              StatusCode::OK);
-		assert_eq!(response.text().await.unwrap(), "");
+		let (status, _, body) = request(s!("api/ping")).await;
+		assert_eq!(status, StatusCode::OK);
+		assert_eq!(body,   "");
+	}
+	
+	//		get_latest															
+	#[tokio::test]
+	async fn get_latest() {
+		initialize();
+		let (status, content_type, body) = request(s!("api/latest")).await;
+		let parsed:  JsonValue = serde_json::from_str(&body).unwrap();
+		let crafted: JsonValue = json!({
+			"version": s!("1.1.0"),
+		});
+		assert_eq!(status,       StatusCode::OK);
+		assert_eq!(content_type, "application/json");
+		assert_json_eq!(parsed, crafted);
+	}
+	
+	//		get_hashes_version													
+	#[tokio::test]
+	async fn get_hashes_version() {
+		initialize();
+		let (status, content_type, body) = request(s!("api/hashes/0.2.0")).await;
+		let parsed:  JsonValue = serde_json::from_str(&body).unwrap();
+		let crafted: JsonValue = json!({
+			"version": s!("0.2.0"),
+			"hash":    s!("798f012674b5b8dcab4b00114bdf6738a69a4cdcf7ca0db1149260c9f81b73f7"),
+		});
+		assert_eq!(status,       StatusCode::OK);
+		assert_eq!(content_type, "application/json");
+		assert_json_eq!(parsed, crafted);
+	}
+	#[tokio::test]
+	async fn get_hashes_version__not_found() {
+		initialize();
+		let (status, content_type, body) = request(s!("api/hashes/3.2.1")).await;
+		assert_eq!(status,       StatusCode::NOT_FOUND);
+		assert_eq!(content_type, "text/plain; charset=utf-8");
+		assert_eq!(body,         "Version 3.2.1 not found");
+	}
+	#[tokio::test]
+	async fn get_hashes_version__invalid() {
+		initialize();
+		let (status, content_type, body) = request(s!("api/hashes/invalid")).await;
+		assert_eq!(status,       StatusCode::BAD_REQUEST);
+		assert_eq!(content_type, "text/plain; charset=utf-8");
+		assert_eq!(body,         "Invalid URL: unexpected character 'i' while parsing major version number");
 	}
 }
 

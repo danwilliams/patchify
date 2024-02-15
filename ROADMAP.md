@@ -5,15 +5,15 @@
 ### Server
 
   - [ ] **Configuration**
-      - [ ] Name of application, to use with binary release files
+      - [x] Name of application, to use with binary release files
       - [ ] Location of released binaries
-      - [ ] List of versions, with corresponding hashes
+      - [x] List of versions, with corresponding hashes
       - [ ] Private key to use for signing
-      - [ ] On start-up, sort the available versions in a manner that is
+      - [x] On start-up, sort the available versions in a manner that is
             sympathetic to version numbering, to determine the latest
   - [ ] **API endpoints**
       - [ ] Latest version number
-          - [ ] `GET /latest`
+          - [x] `GET /latest`
           - [ ] Accept details of the version making the request
           - [ ] Provide the latest version number with signature
       - [ ] Releases
@@ -21,7 +21,7 @@
           - [ ] Accept details of the version making the request
           - [ ] Provide the release binary for download
       - [ ] Verification information
-          - [ ] `GET /hashes/:version`
+          - [x] `GET /hashes/:version`
           - [ ] Accept details of the version making the request
           - [ ] Confirm the authenticity of the binary by providing a SHA256
                 hash with signature
