@@ -4,33 +4,56 @@
 
 use super::*;
 use assert_json_diff::assert_json_eq;
+use claims::assert_err_eq;
 use rubedo::{
 	http::{ResponseExt, UnpackedResponse},
 	sugar::s,
 };
 use sha2::{Sha256, Digest};
+use std::{
+	fs,
+	io::Write,
+};
+use tempfile::{TempDir, tempdir};
 use velcro::hash_map;
+
+
+
+//		Constants
+
+const VERSION_DATA: [(Version, &str); 5] = [
+	(Version::new(1, 0, 0), "foo"),
+	(Version::new(0, 1, 0), "bar"),
+	(Version::new(0, 0, 1), "baz"),
+	(Version::new(1, 1, 0), "foobar"),
+	(Version::new(0, 2, 0), "foobaz"),
+];
 
 
 
 //		Common
 
 //		setup_core																
-fn setup_core() -> Core {
-	let version_data = vec![
-		(Version::new(1, 0, 0), "foo"),
-		(Version::new(0, 1, 0), "bar"),
-		(Version::new(0, 0, 1), "baz"),
-		(Version::new(1, 1, 0), "foobar"),
-		(Version::new(0, 2, 0), "foobaz"),
-	];
+fn setup_core(releases_dir: &TempDir) -> Result<Core, ReleaseError> {
 	Core::new(Config {
 		appname:  s!("test"),
-		versions: version_data.iter()
+		releases: releases_dir.path().to_path_buf(),
+		versions: VERSION_DATA.iter()
 			.map(|(version, data)| (version.clone(), Sha256::digest(data).into()))
 			.collect()
 		,
 	})
+}
+
+//		setup_files																
+fn setup_files() -> TempDir {
+	let releases_dir = tempdir().unwrap();
+	for (version, data) in VERSION_DATA.iter() {
+		let path     = releases_dir.path().join(&format!("test-{}", version));
+		let mut file = File::create(&path).unwrap();
+		write!(file, "{}", data).unwrap();
+	}
+	releases_dir
 }
 
 
@@ -45,30 +68,50 @@ mod core {
 	//		new																	
 	#[test]
 	fn new() {
-		let core = setup_core();
+		let core = setup_core(&setup_files()).unwrap();
 		assert_eq!(core.config.appname, "test");
 		assert_eq!(core.latest,         Version::new(1, 1, 0));
+	}
+	#[test]
+	fn new__err_missing() {
+		let dir  = setup_files();
+		let path = dir.path().join("test-1.0.0");
+		fs::remove_file(&path).unwrap();
+		let err  = setup_core(&dir);
+		assert_err_eq!(err.clone(), ReleaseError::Missing(Version::new(1, 0, 0), path.clone()));
+		assert_eq!(err.unwrap_err().to_string(), format!("The release file for version 1.0.0 is missing: {path:?}"));
+	}
+	#[test]
+	fn new__err_invalid() {
+		let dir      = setup_files();
+		let path     = dir.path().join("test-1.0.0");
+		let mut file = File::create(&path).unwrap();
+		write!(file, "invalid").unwrap();
+		let err      = setup_core(&dir);
+		assert_err_eq!(err.clone(), ReleaseError::Invalid(Version::new(1, 0, 0), path.clone()));
+		assert_eq!(err.unwrap_err().to_string(), format!("The release file for version 1.0.0 failed hash verification: {path:?}"));
 	}
 	
 	//		latest_version														
 	#[test]
 	fn latest_version() {
-		let core = setup_core();
+		let core = setup_core(&setup_files()).unwrap();
 		assert_eq!(core.latest_version(), Version::new(1, 1, 0));
 	}
 	#[test]
 	fn latest_version__empty() {
 		let core = Core::new(Config {
 			appname:  s!("test"),
+			releases: tempdir().unwrap().path().to_path_buf(),
 			versions: hash_map!{},
-		});
+		}).unwrap();
 		assert_eq!(core.latest_version(), Version::new(0, 0, 0));
 	}
 	
 	//		versions															
 	#[test]
 	fn versions() {
-		let core = setup_core();
+		let core = setup_core(&setup_files()).unwrap();
 		assert_eq!(core.versions().iter()
 			.map(|(version, hash)| (version.clone(), hex::encode(hash)))
 			.collect::<HashMap<Version, String>>()
@@ -84,8 +127,9 @@ mod core {
 	fn versions__empty() {
 		let core = Core::new(Config {
 			appname:  s!("test"),
+			releases: tempdir().unwrap().path().to_path_buf(),
 			versions: hash_map!{},
-		});
+		}).unwrap();
 		assert_eq!(core.versions(), hash_map!{});
 	}
 }
@@ -98,7 +142,7 @@ mod axum {
 	//		get_latest_version													
 	#[tokio::test]
 	async fn get_latest_version() {
-		let core     = Arc::new(setup_core());
+		let core     = Arc::new(setup_core(&setup_files()).unwrap());
 		let unpacked = Axum::get_latest_version(Extension(core)).await.into_response().unpack().unwrap();
 		let crafted  = UnpackedResponse::new(
 			StatusCode::OK,
@@ -116,7 +160,7 @@ mod axum {
 	//		get_hash_for_version												
 	#[tokio::test]
 	async fn get_hash_for_version() {
-		let core     = Arc::new(setup_core());
+		let core     = Arc::new(setup_core(&setup_files()).unwrap());
 		let unpacked = Axum::get_hash_for_version(
 			Extension(core),
 			Path(Version::new(0, 2, 0)),
@@ -136,7 +180,7 @@ mod axum {
 	}
 	#[tokio::test]
 	async fn get_hash_for_version__not_found() {
-		let core     = Arc::new(setup_core());
+		let core     = Arc::new(setup_core(&setup_files()).unwrap());
 		let unpacked = Axum::get_hash_for_version(
 			Extension(core),
 			Path(Version::new(3, 2, 1)),

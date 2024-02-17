@@ -26,13 +26,53 @@ use axum::{
 	http::StatusCode,
 	response::IntoResponse,
 };
+use core::fmt::{Display, self};
 use hex;
 use semver::Version;
 use serde_json::json;
+use sha2::{Sha256, Digest};
 use std::{
 	collections::HashMap,
+	error::Error,
+	fs::File,
+	io::{ErrorKind as IoErrorKind, Read},
+	path::PathBuf,
 	sync::Arc,
 };
+
+
+
+//		Enums
+
+//		ReleaseError															
+/// Errors that can occur in relation to releases.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum ReleaseError {
+	/// A release file failed the SHA256 hash check.
+	Invalid(Version, PathBuf),
+	
+	/// A release file does not exist.
+	Missing(Version, PathBuf),
+	
+	/// A release file is unreadable.
+	Unreadable(Version, IoErrorKind, String),
+}
+
+//󰭅		Display																	
+impl Display for ReleaseError {
+	//		fmt																	
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", match *self {
+			Self::Invalid(ref version, ref path)            => format!("The release file for version {version} failed hash verification: {path:?}"),
+			Self::Missing(ref version, ref path)            => format!("The release file for version {version} is missing: {path:?}"),
+			Self::Unreadable(ref version, ref err, ref msg) => format!("The release file for version {version} cannot be read: {err}: {msg}"),
+		})
+	}
+}
+
+//󰭅		Error																	
+impl Error for ReleaseError {}
 
 
 
@@ -66,6 +106,11 @@ pub struct Config {
 	/// the [`releases`](Self::releases) directory, to ensure that the correct
 	/// files are served.
 	pub appname:  String,
+	
+	/// The path to the directory containing the binary release files. This
+	/// should follow a flat structure, with the files named according to the
+	/// [`appname`](Self::appname) and [version number](Self::versions).
+	pub releases: PathBuf,
 	
 	/// The available versions of the application. This is a map of [SemVer](https://semver.org/)
 	/// version numbers against the SHA256 hashes of the binary release files.
@@ -105,17 +150,52 @@ impl Core {
 	/// Note that if the supplied version list is empty, the latest version will
 	/// be set to `0.0.0`.
 	/// 
+	/// This function will check the release files for the versions specified in
+	/// the list, and will return an error if any of the files are missing,
+	/// unreadable, or fail the SHA256 hash check.
+	/// 
 	/// # Parameters
 	/// 
 	/// * `config` - The configuration for the server.
 	/// 
-	#[must_use]
-	pub fn new(config: Config) -> Self {
+	/// # Errors
+	/// 
+	/// * [`ReleaseError::Invalid`]
+	/// * [`ReleaseError::Missing`]
+	/// * [`ReleaseError::Unreadable`]
+	/// 
+	pub fn new(config: Config) -> Result<Self, ReleaseError> {
+		for (version, hash) in &config.versions {
+			let path = config.releases.join(&format!("{}-{}", config.appname, version));
+			if !path.exists() || !path.is_file() {
+				return Err(ReleaseError::Missing(version.clone(), path));
+			}
+			let mut file   = File::open(&path).map_err(|err|
+				ReleaseError::Unreadable(version.clone(), err.kind(), err.to_string())
+			)?;
+			let mut hasher = Sha256::new();
+			let mut buffer = vec![0; 0x0010_0000].into_boxed_slice();  //  1M read buffer on the heap
+			loop {
+				let count = file.read(&mut buffer).map_err(|err|
+					ReleaseError::Unreadable(version.clone(), err.kind(), err.to_string())
+				)?;
+				if count == 0 {
+					break;
+				}
+				#[cfg_attr(    feature = "reasons",  allow(clippy::indexing_slicing, reason = "Infallible"))]
+				#[cfg_attr(not(feature = "reasons"), allow(clippy::indexing_slicing))]
+				hasher.update(&buffer[..count]);
+			}
+			let file_hash: [u8; 32] = hasher.finalize().into();
+			if file_hash != *hash {
+				return Err(ReleaseError::Invalid(version.clone(), path));
+			}
+		}
 		let latest = config.versions.keys().max().unwrap_or(&Version::new(0, 0, 0)).clone();
-		Self {
+		Ok(Self {
 			config,
 			latest,
-		}
+		})
 	}
 	
 	//		latest_version														

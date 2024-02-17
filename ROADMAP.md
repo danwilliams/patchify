@@ -6,7 +6,7 @@
 
   - [ ] **Configuration**
       - [x] Name of application, to use with binary release files
-      - [ ] Location of released binaries
+      - [x] Location of released binaries
       - [x] List of versions, with corresponding hashes
       - [ ] Private key to use for signing
       - [x] On start-up, sort the available versions in a manner that is
@@ -32,8 +32,8 @@
       - [ ] Log all errors
       - [ ] Log all requests
           - [ ] Log the versions making the requests
-      - [ ] Check versions against provided binaries upon start-up
-          - [ ] Exit with an error if there are any missing, or if any hashes
+      - [x] Check versions against provided binaries upon start-up
+          - [x] Exit with an error if there are any missing, or if any hashes
                 don’t match
   - [ ] **Tests**
   - [ ] **Documentation**

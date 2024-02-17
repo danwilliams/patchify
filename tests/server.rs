@@ -22,11 +22,13 @@ use semver::Version;
 use serde_json::{Value as JsonValue, json};
 use sha2::{Sha256, Digest};
 use std::{
-	io::stdout,
+	fs::File,
+	io::{Write, stdout},
 	net::{IpAddr, SocketAddr},
 	sync::{Arc, Once},
 	time::Duration,
 };
+use tempfile::tempdir;
 use tokio::spawn;
 use tower_http::{
 	LatencyUnit,
@@ -80,6 +82,7 @@ fn initialize() {
 
 //		create_server															
 async fn create_server() -> SocketAddr {
+	let releases_dir = tempdir().unwrap();
 	let version_data = vec![
 		(Version::new(1, 0, 0), "foo"),
 		(Version::new(0, 1, 0), "bar"),
@@ -89,11 +92,17 @@ async fn create_server() -> SocketAddr {
 	];
 	let patchify = PatchifyCore::new(PatchifyConfig {
 		appname:  s!("test"),
+		releases: releases_dir.path().to_path_buf(),
 		versions: version_data.iter()
-			.map(|(version, data)| (version.clone(), Sha256::digest(data).into()))
+			.map(|(version, data)| {
+				let path     = releases_dir.path().join(&format!("test-{}", version));
+				let mut file = File::create(&path).unwrap();
+				write!(file, "{}", data).unwrap();
+				(version.clone(), Sha256::digest(data).into())
+			})
 			.collect()
 		,
-	});
+	}).unwrap();
 	let app = Router::new()
 		.route("/api/ping",            get(get_ping))
 		.route("/api/latest",          get(Patchify::get_latest_version))
