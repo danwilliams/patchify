@@ -8,6 +8,46 @@
 //! provide a convenient way to add the functionality to an existing Axum
 //! application.
 //! 
+//! # Signing and verification
+//! 
+//! There is support for signing HTTP responses, to ensure that they have not
+//! been tampered with, and to allow connecting clients to verify authenticity.
+//! This is done using the server's private key, and is designed to be used with
+//! responses that contain a fully-known body (i.e. not streams), as the
+//! complete body data needs to be used to generate the signature.
+//! 
+//! The key format used is Ed25519, which is a modern and secure algorithm, more
+//! secure and performant than RSA. Technically it's part of the family of
+//! Edwards-curve Digital Signature Algorithm (`EdDSA`), and uses Curve25519 as
+//! its underlying elliptic curve. It is designed for high performance, offering
+//! fast signature generation and verification, significantly quicker than
+//! traditional RSA signatures. The keys and signatures are also small, which is
+//! beneficial for storage and transmission. RSA keys typically need to be at
+//! least 2048 bits (and increasingly 3072 or 4096 bits for long-term security),
+//! whereas Ed25519 keys are only 256 bits, yet deliver higher security.
+//! 
+//! Given its advantages, Ed25519 is often recommended for new cryptographic
+//! applications where digital signatures are required. It's particularly suited
+//! for scenarios where performance and security are critical, such as secure
+//! communications, authentication, and blockchain technologies.
+//! 
+//! The design of this library is such that the [`Core`] functionality does not
+//! implement signing, as it is not directly involved with creating HTTP
+//! responses, but the [`Axum`] handlers do. The approach chosen is to return
+//! the signature as an `X-Signature` header, rather than embedding it in the
+//! response body payload. This is to keep the response body payload clean and
+//! free from additional data, and to allow the signature to be verified
+//! separately from the response body. The pattern used by this library is that
+//! release file downloads are not signed, allowing them to be streamed if they
+//! are large, with a SHA256 hash being available separately for verification.
+//! The response containing the hash is signed, so the hash can be verified as
+//! authentic.
+//! 
+//! Due to the short length of the Ed25519 keys and signatures, they are sent in
+//! hexadecimal string format, instead of using base64. This is to ensure
+//! maximum compatibility with all potential uses. Base64 would only offer a
+//! minor saving in comparison.
+//! 
 
 //		Modules
 
@@ -22,12 +62,15 @@ mod tests;
 use axum::{
 	Extension,
 	Json,
+	body::{Body, Bytes},
 	extract::Path,
 	http::StatusCode,
-	response::IntoResponse,
+	response::{IntoResponse, Response},
 };
 use core::fmt::{Display, self};
+use ed25519_dalek::{Signer, SigningKey};
 use hex;
+use rubedo::http::ResponseExt;
 use semver::Version;
 use serde_json::json;
 use sha2::{Sha256, Digest};
@@ -106,6 +149,11 @@ pub struct Config {
 	/// the [`releases`](Self::releases) directory, to ensure that the correct
 	/// files are served.
 	pub appname:  String,
+	
+	/// The private key for the server. This is used to sign the HTTP responses
+	/// to ensure that they have not been tampered with. The format used is
+	/// Ed25519, which is a modern and secure algorithm.
+	pub key:      SigningKey,
 	
 	/// The path to the directory containing the binary release files. This
 	/// should follow a flat structure, with the files named according to the
@@ -276,7 +324,7 @@ impl Axum {
 	pub async fn get_latest_version(
 		Extension(core): Extension<Arc<Core>>,
 	) -> impl IntoResponse {
-		Json(json!({ "version": core.latest_version() }))
+		Self::sign_response(&core.config.key, Json(json!({ "version": core.latest_version() })).into_response())
 	}
 	
 	//		get_hash_for_version												
@@ -306,9 +354,54 @@ impl Axum {
 		#[cfg_attr(    feature = "reasons",  allow(clippy::option_if_let_else, reason = "Match is more readable here"))]
 		#[cfg_attr(not(feature = "reasons"), allow(clippy::option_if_let_else))]
 		match core.versions().get(&version) {
-			Some(hash) => Ok(Json(json!({ "version": version, "hash": hex::encode(hash) }))),
+			Some(hash) => Ok(Self::sign_response(&core.config.key, Json(json!({
+				"version": version,
+				"hash":    hex::encode(hash),
+			})).into_response())),
 			None       => Err((StatusCode::NOT_FOUND, format!("Version {version} not found"))),
 		}
+	}
+	
+	//		sign_response														
+	/// Signs a response by adding a signature header.
+	/// 
+	/// This function accepts a [`Response`] and signs it by adding an
+	/// `X-Signature` header. The signature is generated against the response
+	/// body using the server's private key.
+	/// 
+	/// Note that this function is only suitable for use with responses that
+	/// contain a fully-known body, as the complete body data needs to be used
+	/// to generate the signature. It is therefore not suitable for use with
+	/// streaming responses, as the entire body must be known in advance in
+	/// order to be signed. As large files are often streamed, the implication
+	/// is that these should be unsigned, with their authenticity verified by
+	/// other means.
+	/// 
+	/// The pattern used by this library is that release file downloads are not
+	/// signed, allowing them to be streamed if they are large, with a SHA256
+	/// hash being available separately for verification. The response
+	/// containing the hash is signed, so the hash can be verified as authentic.
+	/// 
+	/// # Parameters
+	/// 
+	/// * `key`      - The server's private key.
+	/// * `response` - The [`Response`] to sign.
+	/// 
+	#[cfg_attr(    feature = "reasons",  allow(clippy::missing_panics_doc, reason = "Infallible"))]
+	#[cfg_attr(not(feature = "reasons"), allow(clippy::missing_panics_doc))]
+	#[cfg_attr(    feature = "reasons",  allow(clippy::unwrap_used, reason = "Infallible"))]
+	#[cfg_attr(not(feature = "reasons"), allow(clippy::unwrap_used))]
+	#[must_use]
+	pub fn sign_response(key: &SigningKey, mut response: Response) -> Response {
+		let unpacked_response   = response.unpack().unwrap();
+		let mut signed_response = Response::builder()
+			.status(unpacked_response.status)
+			.header("X-Signature", key.sign(unpacked_response.body.as_ref()).to_string())
+			.body(Body::from(Bytes::from(unpacked_response.body.into_bytes())))
+			.unwrap()
+		;
+		signed_response.headers_mut().extend(response.headers().clone());
+		signed_response.into_response()
 	}
 }
 

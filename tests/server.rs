@@ -11,12 +11,15 @@ use axum::{
 	routing::get,
 };
 use bytes::Bytes;
+use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
+use hex;
 use patchify::server::{
 	Axum as Patchify,
 	Config as PatchifyConfig,
 	Core as PatchifyCore,
 };
 use reqwest::Client;
+use rand::rngs::OsRng;
 use rubedo::sugar::s;
 use semver::Version;
 use serde_json::{Value as JsonValue, json};
@@ -25,7 +28,7 @@ use std::{
 	fs::File,
 	io::{Write, stdout},
 	net::{IpAddr, SocketAddr},
-	sync::{Arc, Once},
+	sync::{Arc, Once, OnceLock},
 	time::Duration,
 };
 use tempfile::tempdir;
@@ -48,7 +51,8 @@ use tracing_subscriber::{
 
 //		Statics
 
-static INIT: Once = Once::new();
+static INIT: Once                 = Once::new();
+static KEY:  OnceLock<SigningKey> = OnceLock::new();
 
 
 
@@ -77,6 +81,8 @@ fn initialize() {
 			)
 			.init()
 		;
+		let mut csprng = OsRng{};
+		KEY.set(SigningKey::generate(&mut csprng)).unwrap();
 	});
 }
 
@@ -92,6 +98,7 @@ async fn create_server() -> SocketAddr {
 	];
 	let patchify = PatchifyCore::new(PatchifyConfig {
 		appname:  s!("test"),
+		key:      KEY.get().unwrap().clone(),
 		releases: releases_dir.path().to_path_buf(),
 		versions: version_data.iter()
 			.map(|(version, data)| {
@@ -142,13 +149,21 @@ async fn create_server() -> SocketAddr {
 async fn get_ping() {}
 
 //		request																	
-async fn request(path: String) -> (StatusCode, String, String) {
+async fn request(path: String, public_key: Option<VerifyingKey>) -> (StatusCode, String, Option<bool>, String) {
 	let address      = spawn(async { create_server().await }).await.unwrap();
 	let response     = Client::new().get(format!("http://{address}/{path}")).send().await.unwrap();
 	let status       = response.status();
-	let content_type = response.headers().get(CONTENT_TYPE).and_then(|h| h.to_str().ok()).unwrap_or("").to_owned();
+	let content_type = response.headers().get(CONTENT_TYPE) .and_then(|h| h.to_str().ok()).unwrap_or("").to_owned();
+	let signature    = response.headers().get("x-signature").and_then(|h| h.to_str().ok()).unwrap_or("").to_owned();
 	let body         = response.text().await.unwrap();
-	(status, content_type, body)
+	let verified     = if public_key.is_none() || signature.is_empty() {
+		None
+	} else {
+		let signature_bytes            = hex::decode(signature).unwrap();
+		let signature_array: &[u8; 64] = signature_bytes.as_slice().try_into().unwrap();
+		Some(public_key.unwrap().verify_strict(body.as_bytes(), &Signature::from_bytes(signature_array)).is_ok())
+	};
+	(status, content_type, verified, body)
 }
 
 
@@ -163,7 +178,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_ping() {
 		initialize();
-		let (status, _, body) = request(s!("api/ping")).await;
+		let (status, _, _, body) = request(s!("api/ping"), None).await;
 		assert_eq!(status, StatusCode::OK);
 		assert_eq!(body,   "");
 	}
@@ -172,13 +187,30 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_latest() {
 		initialize();
-		let (status, content_type, body) = request(s!("api/latest")).await;
+		let public_key         = KEY.get().unwrap().verifying_key();
+		let (status, content_type, verified, body) = request(s!("api/latest"), Some(public_key)).await;
 		let parsed:  JsonValue = serde_json::from_str(&body).unwrap();
 		let crafted: JsonValue = json!({
 			"version": s!("1.1.0"),
 		});
 		assert_eq!(status,       StatusCode::OK);
 		assert_eq!(content_type, "application/json");
+		assert_eq!(verified,     Some(true));
+		assert_json_eq!(parsed, crafted);
+	}
+	#[tokio::test]
+	async fn get_latest__fail_signature_verification() {
+		initialize();
+		let mut csprng         = OsRng{};
+		let other_public_key   = SigningKey::generate(&mut csprng).verifying_key();
+		let (status, content_type, verified, body) = request(s!("api/latest"), Some(other_public_key)).await;
+		let parsed:  JsonValue = serde_json::from_str(&body).unwrap();
+		let crafted: JsonValue = json!({
+			"version": s!("1.1.0"),
+		});
+		assert_eq!(status,       StatusCode::OK);
+		assert_eq!(content_type, "application/json");
+		assert_eq!(verified,     Some(false));
 		assert_json_eq!(parsed, crafted);
 	}
 	
@@ -186,7 +218,8 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_hashes_version() {
 		initialize();
-		let (status, content_type, body) = request(s!("api/hashes/0.2.0")).await;
+		let public_key         = KEY.get().unwrap().verifying_key();
+		let (status, content_type, verified, body) = request(s!("api/hashes/0.2.0"), Some(public_key)).await;
 		let parsed:  JsonValue = serde_json::from_str(&body).unwrap();
 		let crafted: JsonValue = json!({
 			"version": s!("0.2.0"),
@@ -194,22 +227,27 @@ mod endpoints {
 		});
 		assert_eq!(status,       StatusCode::OK);
 		assert_eq!(content_type, "application/json");
+		assert_eq!(verified,     Some(true));
 		assert_json_eq!(parsed, crafted);
 	}
 	#[tokio::test]
 	async fn get_hashes_version__not_found() {
 		initialize();
-		let (status, content_type, body) = request(s!("api/hashes/3.2.1")).await;
+		let public_key = KEY.get().unwrap().verifying_key();
+		let (status, content_type, verified, body) = request(s!("api/hashes/3.2.1"), Some(public_key)).await;
 		assert_eq!(status,       StatusCode::NOT_FOUND);
 		assert_eq!(content_type, "text/plain; charset=utf-8");
+		assert_eq!(verified,     None);
 		assert_eq!(body,         "Version 3.2.1 not found");
 	}
 	#[tokio::test]
 	async fn get_hashes_version__invalid() {
 		initialize();
-		let (status, content_type, body) = request(s!("api/hashes/invalid")).await;
+		let public_key = KEY.get().unwrap().verifying_key();
+		let (status, content_type, verified, body) = request(s!("api/hashes/invalid"), Some(public_key)).await;
 		assert_eq!(status,       StatusCode::BAD_REQUEST);
 		assert_eq!(content_type, "text/plain; charset=utf-8");
+		assert_eq!(verified,     None);
 		assert_eq!(body,         "Invalid URL: unexpected character 'i' while parsing major version number");
 	}
 }

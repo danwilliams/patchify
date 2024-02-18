@@ -5,6 +5,7 @@
 use super::*;
 use assert_json_diff::assert_json_eq;
 use claims::assert_err_eq;
+use rand::rngs::OsRng;
 use rubedo::{
 	http::{ResponseExt, UnpackedResponse},
 	sugar::s,
@@ -35,8 +36,10 @@ const VERSION_DATA: [(Version, &str); 5] = [
 
 //		setup_core																
 fn setup_core(releases_dir: &TempDir) -> Result<Core, ReleaseError> {
+	let mut csprng = OsRng{};
 	Core::new(Config {
 		appname:  s!("test"),
+		key:      SigningKey::generate(&mut csprng),
 		releases: releases_dir.path().to_path_buf(),
 		versions: VERSION_DATA.iter()
 			.map(|(version, data)| (version.clone(), Sha256::digest(data).into()))
@@ -100,8 +103,10 @@ mod core {
 	}
 	#[test]
 	fn latest_version__empty() {
-		let core = Core::new(Config {
+		let mut csprng = OsRng{};
+		let core       = Core::new(Config {
 			appname:  s!("test"),
+			key:      SigningKey::generate(&mut csprng),
 			releases: tempdir().unwrap().path().to_path_buf(),
 			versions: hash_map!{},
 		}).unwrap();
@@ -125,8 +130,10 @@ mod core {
 	}
 	#[test]
 	fn versions__empty() {
-		let core = Core::new(Config {
+		let mut csprng = OsRng{};
+		let core       = Core::new(Config {
 			appname:  s!("test"),
+			key:      SigningKey::generate(&mut csprng),
 			releases: tempdir().unwrap().path().to_path_buf(),
 			versions: hash_map!{},
 		}).unwrap();
@@ -143,12 +150,13 @@ mod axum {
 	#[tokio::test]
 	async fn get_latest_version() {
 		let core     = Arc::new(setup_core(&setup_files()).unwrap());
-		let unpacked = Axum::get_latest_version(Extension(core)).await.into_response().unpack().unwrap();
+		let unpacked = Axum::get_latest_version(Extension(core.clone())).await.into_response().unpack().unwrap();
 		let crafted  = UnpackedResponse::new(
 			StatusCode::OK,
 			vec![
 				//	Axum automatically adds a content-type header.
 				(s!("content-type"), s!("application/json")),
+				(s!("x-signature"),  core.config.key.sign(unpacked.body.as_ref()).to_string()),
 			],
 			json!({
 				"version": s!("1.1.0"),
@@ -162,7 +170,7 @@ mod axum {
 	async fn get_hash_for_version() {
 		let core     = Arc::new(setup_core(&setup_files()).unwrap());
 		let unpacked = Axum::get_hash_for_version(
-			Extension(core),
+			Extension(core.clone()),
 			Path(Version::new(0, 2, 0)),
 		).await.into_response().unpack().unwrap();
 		let crafted  = UnpackedResponse::new(
@@ -170,6 +178,7 @@ mod axum {
 			vec![
 				//	Axum automatically adds a content-type header.
 				(s!("content-type"), s!("application/json")),
+				(s!("x-signature"),  core.config.key.sign(unpacked.body.as_ref()).to_string()),
 			],
 			json!({
 				"version": s!("0.2.0"),
@@ -194,6 +203,43 @@ mod axum {
 			"Version 3.2.1 not found",
 		);
 		assert_json_eq!(unpacked, crafted);
+	}
+	
+	//		sign_response														
+	#[test]
+	fn sign_response() {
+		let core     = Arc::new(setup_core(&setup_files()).unwrap());
+		let unpacked = Axum::sign_response(&core.config.key.clone(), Response::builder()
+			.status(StatusCode::OK)
+			.body(Body::from(s!("This is a test")))
+			.unwrap()
+			.into_response()
+		).unpack().unwrap();
+		let crafted  = UnpackedResponse::new(
+			StatusCode::OK,
+			vec![
+				(s!("x-signature"), core.config.key.sign("This is a test".as_bytes()).to_string()),
+			],
+			"This is a test",
+		);
+		assert_json_eq!(unpacked, crafted);
+	}
+	#[test]
+	fn sign_response__specific_key() {
+		let mut csprng = OsRng{};
+		let other_key  = SigningKey::generate(&mut csprng);
+		let core       = Arc::new(setup_core(&setup_files()).unwrap());
+		let unpacked   = Axum::sign_response(&core.config.key, Response::builder()
+			.status(StatusCode::OK)
+			.body(Body::from(s!("This is a test")))
+			.unwrap()
+			.into_response()
+		).unpack().unwrap();
+		assert_eq!(unpacked.status, StatusCode::OK);
+		assert_eq!(unpacked.headers[0].name,  "x-signature");
+		assert_eq!(unpacked.headers[0].value, core.config.key.sign("This is a test".as_bytes()).to_string());
+		assert_ne!(unpacked.headers[0].value, other_key      .sign("This is a test".as_bytes()).to_string());
+		assert_eq!(unpacked.body.as_bytes(),  b"This is a test");
 	}
 }
 
