@@ -17,9 +17,9 @@
           - [ ] Accept details of the version making the request
           - [x] Provide the latest version number with signature
       - [ ] Releases
-          - [ ] `GET /releases/:version`
+          - [x] `GET /releases/:version`
           - [ ] Accept details of the version making the request
-          - [ ] Provide the release binary for download
+          - [x] Provide the release binary for download
       - [ ] Verification information
           - [x] `GET /hashes/:version`
           - [ ] Accept details of the version making the request
@@ -29,8 +29,8 @@
       - [x] Private key will be used to provide a signature to the version
             number and SHA256 hash
   - [ ] **Errors and logging**
-      - [ ] Log all errors
-      - [ ] Log all requests
+      - [x] Log all errors
+      - [x] Log all requests
           - [ ] Log the versions making the requests
       - [x] Check versions against provided binaries upon start-up
           - [x] Exit with an error if there are any missing, or if any hashes

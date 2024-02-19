@@ -48,6 +48,12 @@
 //! maximum compatibility with all potential uses. Base64 would only offer a
 //! minor saving in comparison.
 //! 
+//! # Streaming
+//! 
+//! The behaviour implemented in the provided [`Axum`] handlers is that large
+//! release files will be streamed. For more information on how to configure the
+//! various streaming parameters, see the [`Config`] struct documentation.
+//! 
 
 //		Modules
 
@@ -64,13 +70,16 @@ use axum::{
 	Json,
 	body::{Body, Bytes},
 	extract::Path,
-	http::StatusCode,
+	http::{StatusCode, header::CONTENT_TYPE},
 	response::{IntoResponse, Response},
 };
 use core::fmt::{Display, self};
 use ed25519_dalek::{Signer, SigningKey};
 use hex;
-use rubedo::http::ResponseExt;
+use rubedo::{
+	http::ResponseExt,
+	sugar::s,
+};
 use semver::Version;
 use serde_json::json;
 use sha2::{Sha256, Digest};
@@ -82,6 +91,12 @@ use std::{
 	path::PathBuf,
 	sync::Arc,
 };
+use tokio::{
+	fs::File as AsyncFile,
+	io::{AsyncReadExt, BufReader},
+};
+use tokio_util::io::ReaderStream;
+use tracing::error;
 
 
 
@@ -124,6 +139,12 @@ impl Error for ReleaseError {}
 //		Config																	
 /// The configuration options for the server.
 /// 
+/// Most configuration options should be fairly self-explanatory, according to
+/// their individual documentation. However, there are some areas that merit
+/// further commentary, given in the following sections.
+/// 
+/// # Release file naming conventions
+/// 
 /// Notably, the filename format for the binary release files is expected to be
 /// `appname-version`, where `appname` is the name of the application, and
 /// `version` is the version number. This is used to match against the files in
@@ -140,6 +161,26 @@ impl Error for ReleaseError {}
 /// implementer to decide. All releases are expected to be stable, and there is
 /// no way to specify a release as a beta.
 /// 
+/// # Release file streaming
+/// 
+/// If the release files are larger than a (configurable) size they will be
+/// streamed to the client, rather than read into memory all at once. This is to
+/// ensure that the server can handle large files without running out of memory.
+/// 
+/// Note that the sizes of the stream buffer and read buffer are hugely
+/// important to performance, with smaller buffers greatly impacting download
+/// speeds. The recommended default values have been carefully chosen based on
+/// extensive testing, and should not generally need to be changed. However, on
+/// a system with lots of users and very few large files it *may* be worth
+/// decreasing the buffer sizes to reduce memory usage when those files are
+/// requested, and on a system with very few users and lots of large files it
+/// *may* be worth increasing the buffer sizes to improve throughput. However,
+/// the chosen values are already within 5-10% of the very best possible speeds,
+/// so any increase should be made with caution. It is more likely that they
+/// would need to be decreased a little on a very busy system with a lot of
+/// large files, where the memory usage could become a problem and the raw speed
+/// of each download becomes a secondary concern.
+/// 
 #[cfg_attr(    feature = "reasons",  allow(clippy::exhaustive_structs, reason = "Provided for configuration"))]
 #[cfg_attr(not(feature = "reasons"), allow(clippy::exhaustive_structs))]
 #[derive(Clone, Debug)]
@@ -148,23 +189,36 @@ pub struct Config {
 	/// The name of the application. This is used to match against the files in
 	/// the [`releases`](Self::releases) directory, to ensure that the correct
 	/// files are served.
-	pub appname:  String,
+	pub appname:          String,
 	
 	/// The private key for the server. This is used to sign the HTTP responses
 	/// to ensure that they have not been tampered with. The format used is
 	/// Ed25519, which is a modern and secure algorithm.
-	pub key:      SigningKey,
+	pub key:              SigningKey,
 	
 	/// The path to the directory containing the binary release files. This
 	/// should follow a flat structure, with the files named according to the
 	/// [`appname`](Self::appname) and [version number](Self::versions).
-	pub releases: PathBuf,
+	pub releases:         PathBuf,
+	
+	/// The file size at which to start streaming, in KB. Below this size, the
+	/// file will be read into memory and served all at once. A sensible default
+	/// is `1000` (1MB).
+	pub stream_threshold: u64,
+	
+	/// The size of the stream buffer to use when streaming files, in KB. A
+	/// sensible default is `256` (256KB).
+	pub stream_buffer:    usize,
+	
+	/// The size of the read buffer to use when streaming files, in KB. A
+	/// sensible default is `128` (128KB).
+	pub read_buffer:      usize,
 	
 	/// The available versions of the application. This is a map of [SemVer](https://semver.org/)
 	/// version numbers against the SHA256 hashes of the binary release files.
 	/// The hashes are required so that the server can verify the integrity of
 	/// the files before serving them to clients.
-	pub versions: HashMap<Version, [u8; 32]>
+	pub versions:         HashMap<Version, [u8; 32]>
 }
 
 //		Core																	
@@ -267,6 +321,30 @@ impl Core {
 	pub fn versions(&self) -> HashMap<Version, [u8; 32]> {
 		self.config.versions.clone()
 	}
+	
+	//		release_file														
+	/// The release file for a given version of the application.
+	/// 
+	/// This function returns the path to the release file for the specified
+	/// version of the application, as per the configured version list.
+	/// 
+	/// No attempt will be made to verify the existence, readability, or
+	/// integrity of the release file.
+	/// 
+	/// If the specified version does not exist, this function will return
+	/// `None`.
+	/// 
+	/// # Parameters
+	/// 
+	/// * `version` - The version of the application to retrieve the release
+	///               file for.
+	/// 
+	#[must_use]
+	pub fn release_file(&self, version: &Version) -> Option<PathBuf> {
+		self.versions()
+			.get(version)
+			.map(|_hash| self.config.releases.join(format!("{}-{}", self.config.appname, version)))
+	}
 }
 
 //		Axum																	
@@ -294,8 +372,9 @@ impl Core {
 /// let config = Config { /* ... */ };
 /// let core   = Arc::new(Core::new(config));
 /// let app    = Router::new()
-///     .route("/api/latest",          get(Axum::get_latest_version))
-///     .route("/api/hashes/:version", get(Axum::get_hash_for_version))
+///     .route("/api/latest",            get(Axum::get_latest_version))
+///     .route("/api/hashes/:version",   get(Axum::get_hash_for_version))
+///     .route("/api/releases/:version", get(Axum::get_release_file))
 ///     .layer(Extension(core))
 /// ;
 /// ```
@@ -360,6 +439,83 @@ impl Axum {
 			})).into_response())),
 			None       => Err((StatusCode::NOT_FOUND, format!("Version {version} not found"))),
 		}
+	}
+	
+	//		get_release_file													
+	/// Release file for a given version of the application.
+	/// 
+	/// This function returns the release file for the specified version of the
+	/// application, as per the configured version list. It will stream the file
+	/// if it is large.
+	/// 
+	/// # Parameters
+	/// 
+	/// * `core`    - The core server instance.
+	/// * `version` - The version of the application to retrieve the release
+	///               file for.
+	/// 
+	/// # Errors
+	/// 
+	///   - A `400 Bad Request` status will be returned if the version format is
+	///     invalid.
+	///   - A `404 Not Found` status will be returned if the specified version
+	///     does not exist.
+	///   - A `500 Internal Server Error` status will be returned if the file
+	///     is missing or cannot be read. In this situation a message to this
+	///     effect will be provided — this is useful for testing the endpoint
+	///     directly, but in a production environment it would be sensible to
+	///     strip it out rather than show it to an end user.
+	/// 
+	#[cfg_attr(    feature = "reasons",  allow(clippy::missing_panics_doc, reason = "Infallible"))]
+	#[cfg_attr(not(feature = "reasons"), allow(clippy::missing_panics_doc))]
+	pub async fn get_release_file(
+		Extension(core): Extension<Arc<Core>>,
+		Path(version):   Path<Version>,
+	) -> impl IntoResponse {
+		let Some(path) = core.release_file(&version) else {
+			return Err((StatusCode::NOT_FOUND, format!("Version {version} not found")));
+		};
+		if !path.exists() || !path.is_file() {
+			error!("Release file missing: {path:?}");
+			return Err((StatusCode::INTERNAL_SERVER_ERROR, s!("Release file missing")));
+		}
+		let mut file  = match AsyncFile::open(&path).await {
+			Ok(file) => file,
+			Err(err) => {
+				error!("Cannot open release file: {path:?}, error: {err}");
+				return Err((StatusCode::INTERNAL_SERVER_ERROR, s!("Cannot open release file")));
+			},
+		};
+		let metadata = match file.metadata().await {
+			Ok(metadata) => metadata,
+			Err(err)     => {
+				error!("Cannot read release file metadata: {path:?}, error: {err}");
+				return Err((StatusCode::INTERNAL_SERVER_ERROR, s!("Cannot read release file metadata")));
+			},
+		};
+		let body = if metadata.len() > core.config.stream_threshold.saturating_mul(1024) {
+			let reader = BufReader::with_capacity(core.config.read_buffer.saturating_mul(1024), file);
+			let stream = ReaderStream::with_capacity(reader, core.config.stream_buffer.saturating_mul(1024));
+			Body::wrap_stream(stream)
+		} else {
+			let mut contents = vec![];
+			match file.read_to_end(&mut contents).await {
+				Ok(_)    => (),
+				Err(err) => {
+					error!("Cannot read release file: {path:?}, error: {err}");
+					return Err((StatusCode::INTERNAL_SERVER_ERROR, s!("Cannot read release file")));
+				},
+			}
+			Body::from(contents)
+		};
+		#[cfg_attr(    feature = "reasons",  allow(clippy::unwrap_used, reason = "Infallible"))]
+		#[cfg_attr(not(feature = "reasons"), allow(clippy::unwrap_used))]
+		Ok(Response::builder()
+			.status(StatusCode::OK)
+			.header(CONTENT_TYPE, "application/octet-stream")
+			.body(body)
+			.unwrap()
+		)
 	}
 	
 	//		sign_response														

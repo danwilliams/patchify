@@ -162,7 +162,6 @@ mod integration_test_package_usage {
 	use bytes as _;
 	use reqwest as _;
 	use tower_http as _;
-	use tracing as _;
 	use tracing_subscriber as _;
 }
 

@@ -4,7 +4,7 @@
 
 use super::*;
 use assert_json_diff::assert_json_eq;
-use claims::assert_err_eq;
+use claims::{assert_err_eq, assert_none};
 use rand::rngs::OsRng;
 use rubedo::{
 	http::{ResponseExt, UnpackedResponse},
@@ -22,12 +22,12 @@ use velcro::hash_map;
 
 //		Constants
 
-const VERSION_DATA: [(Version, &str); 5] = [
-	(Version::new(1, 0, 0), "foo"),
-	(Version::new(0, 1, 0), "bar"),
-	(Version::new(0, 0, 1), "baz"),
-	(Version::new(1, 1, 0), "foobar"),
-	(Version::new(0, 2, 0), "foobaz"),
+const VERSION_DATA: [(Version, usize, &[u8]); 5] = [
+	(Version::new(1, 0, 0),       1, b"foo"),
+	(Version::new(0, 1, 0),       1, b"bar"),
+	(Version::new(0, 0, 1),       1, b"foobarbaz"),
+	(Version::new(1, 1, 0),     512, &[0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF]),  //  5KB binary string
+	(Version::new(0, 2, 0), 524_288, &[0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF]),  //  5MB binary string
 ];
 
 
@@ -42,19 +42,22 @@ fn setup_core(releases_dir: &TempDir) -> Result<Core, ReleaseError> {
 		key:      SigningKey::generate(&mut csprng),
 		releases: releases_dir.path().to_path_buf(),
 		versions: VERSION_DATA.iter()
-			.map(|(version, data)| (version.clone(), Sha256::digest(data).into()))
+			.map(|(version, repetitions, data)| (version.clone(), Sha256::digest(data.repeat(*repetitions)).into()))
 			.collect()
 		,
+		stream_threshold: 1000,
+		stream_buffer:    256,
+		read_buffer:      128,
 	})
 }
 
 //		setup_files																
 fn setup_files() -> TempDir {
 	let releases_dir = tempdir().unwrap();
-	for (version, data) in VERSION_DATA.iter() {
+	for (version, repetitions, data) in VERSION_DATA.iter() {
 		let path     = releases_dir.path().join(&format!("test-{}", version));
 		let mut file = File::create(&path).unwrap();
-		write!(file, "{}", data).unwrap();
+		file.write_all(&data.repeat(*repetitions)).unwrap();
 	}
 	releases_dir
 }
@@ -109,6 +112,9 @@ mod core {
 			key:      SigningKey::generate(&mut csprng),
 			releases: tempdir().unwrap().path().to_path_buf(),
 			versions: hash_map!{},
+			stream_threshold: 1000,
+			stream_buffer:    256,
+			read_buffer:      128,
 		}).unwrap();
 		assert_eq!(core.latest_version(), Version::new(0, 0, 0));
 	}
@@ -123,9 +129,9 @@ mod core {
 		, hash_map!{
 			Version::new(1, 0, 0): s!("2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"),
 			Version::new(0, 1, 0): s!("fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9"),
-			Version::new(0, 0, 1): s!("baa5a0964d3320fbc0c6a922140453c8513ea24ab8fd0577034804a967248096"),
-			Version::new(1, 1, 0): s!("c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2"),
-			Version::new(0, 2, 0): s!("798f012674b5b8dcab4b00114bdf6738a69a4cdcf7ca0db1149260c9f81b73f7"),
+			Version::new(0, 0, 1): s!("97df3588b5a3f24babc3851b372f0ba71a9dcdded43b14b9d06961bfc1707d9d"),
+			Version::new(1, 1, 0): s!("71b9dacf6c68a207b01c2b05f6362e62c267cc86123a596821366f6753bf10fa"),
+			Version::new(0, 2, 0): s!("45fb074c75cfae708144969a1df5b33d845c95475a5ed69a60736b9391aac73b"),
 		});
 	}
 	#[test]
@@ -136,8 +142,23 @@ mod core {
 			key:      SigningKey::generate(&mut csprng),
 			releases: tempdir().unwrap().path().to_path_buf(),
 			versions: hash_map!{},
+			stream_threshold: 1000,
+			stream_buffer:    256,
+			read_buffer:      128,
 		}).unwrap();
 		assert_eq!(core.versions(), hash_map!{});
+	}
+	
+	//		release_file														
+	#[test]
+	fn release_file() {
+		let core = setup_core(&setup_files()).unwrap();
+		assert_eq!(core.release_file(&Version::new(1, 1, 0)).unwrap(), core.config.releases.join("test-1.1.0"));
+	}
+	#[test]
+	fn release_file__not_found() {
+		let core = setup_core(&setup_files()).unwrap();
+		assert_none!(core.release_file(&Version::new(8, 7, 6)));
 	}
 }
 
@@ -182,7 +203,7 @@ mod axum {
 			],
 			json!({
 				"version": s!("0.2.0"),
-				"hash":    s!("798f012674b5b8dcab4b00114bdf6738a69a4cdcf7ca0db1149260c9f81b73f7"),
+				"hash":    s!("45fb074c75cfae708144969a1df5b33d845c95475a5ed69a60736b9391aac73b"),
 			}),
 		);
 		assert_json_eq!(unpacked, crafted);
@@ -201,6 +222,96 @@ mod axum {
 				(s!("content-type"), s!("text/plain; charset=utf-8")),
 			],
 			"Version 3.2.1 not found",
+		);
+		assert_json_eq!(unpacked, crafted);
+	}
+	
+	//		get_release_file													
+	#[tokio::test]
+	async fn get_release_file() {
+		let dir      = setup_files();
+		let core     = Arc::new(setup_core(&dir).unwrap());
+		let unpacked = Axum::get_release_file(
+			Extension(core.clone()),
+			Path(Version::new(0, 0, 1)),
+		).await.into_response().unpack().unwrap();
+		let crafted  = UnpackedResponse::new(
+			StatusCode::OK,
+			vec![
+				(s!("content-type"), s!("application/octet-stream")),
+			],
+			b"foobarbaz",
+		);
+		assert_json_eq!(unpacked, crafted);
+	}
+	#[tokio::test]
+	async fn get_release_file__medium_binary() {
+		let dir      = setup_files();
+		let core     = Arc::new(setup_core(&dir).unwrap());
+		let unpacked = Axum::get_release_file(
+			Extension(core.clone()),
+			Path(Version::new(1, 1, 0)),
+		).await.into_response().unpack().unwrap();
+		let crafted  = UnpackedResponse::new(
+			StatusCode::OK,
+			vec![
+				(s!("content-type"), s!("application/octet-stream")),
+			],
+			vec![0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF].repeat(512),
+		);
+		assert_json_eq!(unpacked, crafted);
+	}
+	#[tokio::test]
+	async fn get_release_file__large_binary() {
+		let dir      = setup_files();
+		let core     = Arc::new(setup_core(&dir).unwrap());
+		let unpacked = Axum::get_release_file(
+			Extension(core.clone()),
+			Path(Version::new(0, 2, 0)),
+		).await.into_response().unpack().unwrap();
+		let crafted  = UnpackedResponse::new(
+			StatusCode::OK,
+			vec![
+				(s!("content-type"), s!("application/octet-stream")),
+			],
+			vec![0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF].repeat(524_288),
+		);
+		assert_json_eq!(unpacked, crafted);
+	}
+	#[tokio::test]
+	async fn get_release_file__not_found() {
+		let dir      = setup_files();
+		let core     = Arc::new(setup_core(&dir).unwrap());
+		let unpacked = Axum::get_release_file(
+			Extension(core.clone()),
+			Path(Version::new(7, 8, 9)),
+		).await.into_response().unpack().unwrap();
+		let crafted  = UnpackedResponse::new(
+			StatusCode::NOT_FOUND,
+			vec![
+				//	Axum automatically adds a content-type header.
+				(s!("content-type"), s!("text/plain; charset=utf-8")),
+			],
+			"Version 7.8.9 not found",
+		);
+		assert_json_eq!(unpacked, crafted);
+	}
+	#[tokio::test]
+	async fn get_release_file__missing() {
+		let dir      = setup_files();
+		let core     = Arc::new(setup_core(&dir).unwrap());
+		fs::remove_file(&dir.path().join("test-0.0.1")).unwrap();
+		let unpacked = Axum::get_release_file(
+			Extension(core.clone()),
+			Path(Version::new(0, 0, 1)),
+		).await.into_response().unpack().unwrap();
+		let crafted  = UnpackedResponse::new(
+			StatusCode::INTERNAL_SERVER_ERROR,
+			vec![
+				//	Axum automatically adds a content-type header.
+				(s!("content-type"), s!("text/plain; charset=utf-8")),
+			],
+			"Release file missing",
 		);
 		assert_json_eq!(unpacked, crafted);
 	}
