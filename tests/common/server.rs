@@ -32,7 +32,7 @@ use tower_http::{
 	classify::ServerErrorsFailureClass,
 	trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
-use tracing::{Level, Span, debug, error, info};
+use tracing::{Level, Span, debug, error};
 use tracing_subscriber::{
 	EnvFilter,
 	fmt::{format::FmtSpan, layer, writer::MakeWriterExt},
@@ -141,13 +141,10 @@ pub async fn create_server() -> (SocketAddr, TempDir) {
 			})
 		)
 	;
-	let address = spawn(async {
-		let server  = Server::bind(&SocketAddr::from((IpAddr::from([127, 0, 0, 1]), 0))).serve(app.into_make_service());
-		let address = server.local_addr();
-		info!("Listening on {address}");
-		spawn(server);
-		address
-	}).await.unwrap();
+	let server   = Server::bind(&SocketAddr::from((IpAddr::from([127, 0, 0, 1]), 0))).serve(app.into_make_service());
+	let address  = server.local_addr();
+	spawn(server);
+	println!("Listening on {address}");
 	(address, releases_dir)
 }
 

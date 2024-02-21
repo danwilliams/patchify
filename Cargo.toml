@@ -39,6 +39,7 @@ claims = "0.7.1"
 rand = "0.8.5"
 reqwest = "0.11.24"
 tempfile = "3.10.0"
+test-binary = "3.0.2"
 tokio = { version = "1.36.0", features = ["io-std", "macros", "rt-multi-thread"] }
 tower-http = { version = "0.4.4", features = ["trace"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
