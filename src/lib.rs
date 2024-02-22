@@ -161,7 +161,6 @@ pub mod client;
 #[cfg(test)]
 mod integration_test_package_usage {
 	use bytes as _;
-	use reqwest as _;
 	use test_binary as _;
 	use tower_http as _;
 	use tracing_subscriber as _;

@@ -40,13 +40,13 @@
 
 ### Client
 
-  - [ ] **Configuration**
-      - [ ] The version of the application
-      - [ ] Where to look for updates — hostname plus basepath of API
-      - [ ] How often to check for updates
-          - [ ] Every time the application starts
-          - [ ] Every X interval of time
-      - [ ] Public key to use for verifying provided information
+  - [x] **Configuration**
+      - [x] The version of the application
+      - [x] Where to look for updates — hostname plus basepath of API
+      - [x] How often to check for updates
+          - [x] Every time the application starts
+          - [x] Every X interval of time
+      - [x] Public key to use for verifying provided information
   - [ ] **Status**
       - [ ] Critical actions counter, with methods to increment and decrement
       - [ ] Central status enum — update at each stage
