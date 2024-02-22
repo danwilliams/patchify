@@ -23,6 +23,7 @@ reasons = []
 [dependencies]
 axum = "0.6.20"
 ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
+flume = { version = "0.11.0", features = ["async"] }
 hex = "0.4.3"
 reqwest = "0.11.24"
 rubedo = "0.4.6"
