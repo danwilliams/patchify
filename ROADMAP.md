@@ -53,11 +53,11 @@
       - [ ] Method to check if an update has been started
       - [ ] Only start new critical actions if the status allows it
   - [ ] **Check for updates**
-      - [ ] Query the server at intervals
+      - [x] Query the server at intervals
           - [ ] Check no upgrade is currently in progress
           - [ ] Send details of the version in use
-          - [ ] Check response against version in use
-          - [ ] Use the public key to verify the legitimacy of the provided
+          - [x] Check response against version in use
+          - [x] Use the public key to verify the legitimacy of the provided
                 information
   - [ ] **Perform the update**
       - [ ] Make update status information available

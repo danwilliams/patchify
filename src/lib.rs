@@ -154,6 +154,10 @@
 pub mod server;
 pub mod client;
 
+#[cfg(test)]
+#[path = "tests/mocks.rs"]
+mod mocks;
+
 
 
 //		Packages
@@ -164,6 +168,7 @@ mod integration_test_package_usage {
 	use test_binary as _;
 	use tower_http as _;
 	use tracing_subscriber as _;
+	use wiremock as _;
 }
 
 
