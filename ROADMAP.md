@@ -63,13 +63,13 @@
       - [ ] Make update status information available
           - [ ] Update central status enum at each stage
           - [ ] Broadcast the status updates to interested subscribers
-      - [ ] Download the new binary
-          - [ ] Save into a tmpdir — this will be auto-cleaned when the
+      - [x] Download the new binary
+          - [x] Save into a tmpdir — this will be auto-cleaned when the
                 application exits
           - [ ] Provide information about the download progress
-      - [ ] Verify the correctness of the downloaded binary
-          - [ ] Run a SHA256 hash and compare with the published hash
-          - [ ] Use the public key to verify the legitimacy of the provided
+      - [x] Verify the correctness of the downloaded binary
+          - [x] Run a SHA256 hash and compare with the published hash
+          - [x] Use the public key to verify the legitimacy of the provided
                 information
       - [ ] Replace the installed application binary
           - [ ] This may need finesse under Windows

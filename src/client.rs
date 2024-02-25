@@ -13,6 +13,8 @@ mod tests;
 use core::fmt::{Display, self};
 use ed25519_dalek::{Signature, VerifyingKey};
 use flume::{Sender, self};
+use futures_util::StreamExt;
+use hex;
 use reqwest::{
 	StatusCode,
 	Url,
@@ -24,11 +26,16 @@ use serde::{
 	Deserialize,
 	de::DeserializeOwned
 };
+use sha2::{Sha256, Digest};
 use std::{
 	error::Error,
+	path::PathBuf,
 	sync::Arc,
 };
+use tempfile::{tempdir, TempDir};
 use tokio::{
+	fs::File as AsyncFile,
+	io::AsyncWriteExt,
 	select,
 	spawn,
 	time::{Duration, interval},
@@ -49,6 +56,10 @@ use crate::mocks::{Client as HttpClient, MockClient as Client, MockResponse as R
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum UpdaterError {
+	/// Verification of the SHA256 hash of the downloaded file against the
+	/// server's hash data failed.
+	FailedHashVerification(Version),
+	
 	/// Verification of the HTTP response body against the signature header
 	/// using the configured public key failed.
 	FailedSignatureVerification(Url),
@@ -81,6 +92,15 @@ pub enum UpdaterError {
 	/// header.
 	MissingSignature(Url),
 	
+	/// A problem was encountered when trying to create a file for the download.
+	UnableToCreateDownload(PathBuf, String),
+	
+	/// A problem was encountered when trying to create a temporary directory.
+	UnableToCreateTempDir(String),
+	
+	/// A problem was encountered when trying to write to the download file.
+	UnableToWriteToDownload(PathBuf, String),
+	
 	/// The content type of the response is not as expected.
 	UnexpectedContentType(Url, String, String),
 }
@@ -90,6 +110,7 @@ impl Display for UpdaterError {
 	//		fmt																	
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "{}", match *self {
+			Self::FailedHashVerification(ref version)                     => format!(  "Failed hash verification for downloaded version {version}"),
 			Self::FailedSignatureVerification(ref url)                    => format!(  "Failed signature verification for response from {url}"),
 			Self::HttpError(ref url, ref status)                          => format!(  "HTTP status code {status} received when calling {url}"),
 			Self::HttpRequestFailed(ref url, ref msg)                     => format!(  "HTTP request to {url} failed: {msg}"),
@@ -98,6 +119,9 @@ impl Display for UpdaterError {
 			Self::InvalidSignature(ref url, ref signature)                => format!(r#"Invalid signature header "{signature}" received from {url}"#),
 			Self::InvalidUrl(ref base, ref endpoint)                      => format!(  "Invalid URL specified: {base} plus {endpoint}"),
 			Self::MissingSignature(ref url)                               => format!(  "HTTP response from {url} does not contain a signature header"),
+			Self::UnableToCreateDownload(ref path, ref msg)               => format!(r#"Unable to create download file "{path:?}": {msg}"#),
+			Self::UnableToCreateTempDir(ref msg)                          => format!(  "Unable to create temporary directory: {msg}"),
+			Self::UnableToWriteToDownload(ref path, ref msg)              => format!(r#"Unable to write to download file "{path:?}": {msg}"#),
 			Self::UnexpectedContentType(ref url, ref value, ref expected) => format!(r#"HTTP response from {url} had unexpected content type: "{value}", expected: "{expected}""#),
 		})
 	}
@@ -225,24 +249,115 @@ impl Updater {
 	/// application will be restarted.
 	/// 
 	async fn check_for_updates(&self) {
+		//		Get latest version												
 		info!("Checking for updates");
 		let (url, response) = match self.request("latest").await {
-			Ok((url, response)) => (url, response),
-			Err(err)            => {
+			Ok(data) => data,
+			Err(err) => {
 				error!("Error checking for updates: {err}");
 				return;
 			},
 		};
-		match self.decode_and_verify::<LatestVersionResponse>(url, response).await {
-			Ok(json) => {
-				if json.version > self.config.version {
-					info!("New version {} available", json.version);
-				} else {
-					info!("The current version {} is the latest available", self.config.version);
-				}
+		let version = match self.decode_and_verify::<LatestVersionResponse>(url, response).await {
+			Ok(json) => json.version,
+			Err(err) => {
+				error!("Error checking for updates: {err}");
+				return;
 			},
-			Err(err) => error!("Error checking for updates: {err}"),
 		};
+		//		Compare to current version										
+		if version <= self.config.version {
+			info!("The current version {} is the latest available", self.config.version);
+			return;
+		}
+		info!("New version {} available", version);
+		//		Download update file											
+		let (_download_dir, _update_path, file_hash) = match self.download_update(&version).await {
+			Ok(data) => data,
+			Err(err) => {
+				error!("Error downloading update file: {err}");
+				return;
+			},
+		};
+		if let Err(err) = self.verify_update(&version, &file_hash).await {
+			error!("Error verifying update file: {err}");
+			return;
+		}
+		info!("Update file verified");
+		//		Install update													
+		//	TODO: Install update
+		//		Restart application												
+		//	TODO: Restart application
+	}
+	
+	//		download_update														
+	/// Downloads an application update.
+	/// 
+	/// This function downloads an application update from the API server, in
+	/// the form of an executable binary, and calculates the SHA256 hash of the
+	/// downloaded file.
+	/// 
+	/// # Errors
+	/// 
+	/// * [`UpdaterError::UnableToCreateDownload`]
+	/// * [`UpdaterError::UnableToCreateTempDir`]
+	/// * [`UpdaterError::UnableToWriteToDownload`]
+	/// * [`UpdaterError::UnexpectedContentType`]
+	/// 
+	async fn download_update(&self, version: &Version) -> Result<(TempDir, PathBuf, [u8; 32]), UpdaterError> {
+		info!("Downloading update {version}");
+		//		Prepare file to download to										
+		let download_dir = tempdir().map_err(|err| UpdaterError::UnableToCreateTempDir(err.to_string()))?;
+		let update_path  = download_dir.path().join(format!("update-{version}"));
+		let mut file     = AsyncFile::create(&update_path).await.map_err(|err|
+			UpdaterError::UnableToCreateDownload(update_path.clone(), err.to_string())
+		)?;
+		//		Check content type												
+		let (url, response) = self.request(&format!("releases/{version}")).await?;
+		let content_type = response.headers().get(CONTENT_TYPE).and_then(|h| h.to_str().ok()).unwrap_or("").to_owned();
+		if content_type != "application/octet-stream" {
+			return Err(UpdaterError::UnexpectedContentType(url, content_type, s!("application/octet-stream")));
+		}
+		//		Download release to file										
+		let mut response_stream = response.bytes_stream();
+		let mut hasher          = Sha256::new();
+		//	Download in chunks, and update the SHA256 hash along the way
+		while let Some(Ok(chunk)) = response_stream.next().await {
+			file.write_all(&chunk).await.map_err(|err|
+				UpdaterError::UnableToWriteToDownload(update_path.clone(), err.to_string())
+			)?;
+			hasher.update(&chunk);
+		}
+		let file_hash: [u8; 32] = hasher.finalize().into();
+		Ok((download_dir, update_path, file_hash))
+	}
+	
+	//		verify_update														
+	/// Verifies an application update.
+	/// 
+	/// This function checks that the SHA256 hash of a downloaded file matches
+	/// the hash provided by the API server.
+	/// 
+	/// # Errors
+	/// 
+	/// * [`UpdaterError::InvalidPayload`]
+	/// * [`UpdaterError::FailedHashVerification`]
+	/// 
+	async fn verify_update(&self, version: &Version, hash: &[u8; 32]) -> Result<(), UpdaterError> {
+		info!("Verifying update {version}");
+		let (url, response) = self.request(&format!("hashes/{version}")).await?;
+		match self.decode_and_verify::<VersionHashResponse>(url.clone(), response).await {
+			Ok(json) => {
+				if json.version != *version {
+					return Err(UpdaterError::InvalidPayload(url));
+				}
+				if json.hash != hex::encode(hash) {
+					return Err(UpdaterError::FailedHashVerification(version.clone()));
+				}
+				Ok(())
+			},
+			Err(err) => Err(err),
+		}
 	}
 	
 	//		request																
@@ -335,6 +450,18 @@ struct LatestVersionResponse {
 	//		Private properties													
 	/// The latest version of the application.
 	version: Version,
+}
+
+//		VersionHashResponse														
+/// The application hash and version returned by the `hashes/:version` endpoint.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+struct VersionHashResponse {
+	//		Private properties													
+	/// The requested version of the application.
+	version: Version,
+	
+	/// The SHA256 hash of the application binary for this version.
+	hash:    String,
 }
 
 

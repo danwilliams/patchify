@@ -16,8 +16,10 @@
 
 //		Packages
 
+use bytes::Bytes;
 use core::fmt::{Display, self};
 use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
+use futures_util::stream::{Stream, self};
 use mockall::{automock, concretize};
 use rand::rngs::OsRng;
 use reqwest::{
@@ -27,7 +29,10 @@ use reqwest::{
 	header::{HeaderMap, CONTENT_TYPE},
 };
 use rubedo::sugar::s;
-use std::sync::Arc;
+use std::{
+	pin::Pin,
+	sync::Arc,
+};
 
 
 
@@ -78,11 +83,30 @@ impl Display for MockError {
 pub(crate) struct MockResponse {
 	pub(crate) status:  StatusCode,
 	pub(crate) headers: HeaderMap,
-	pub(crate) body:    Result<Arc<String>, MockError>,
+	pub(crate) body:    Result<Arc<Bytes>, MockError>,
 }
 
 //󰭅		MockResponse															
 impl MockResponse {
+	//		bytes																
+	pub(crate) async fn bytes(&self) -> Result<Arc<Bytes>, MockError> {
+		self.body.clone()
+	}
+	
+	//		bytes_stream														
+	pub(crate) fn bytes_stream(&self) -> Pin<Box<dyn Stream<Item = Result<Bytes, MockError>> + Send>> {
+		match &self.body {
+			Ok(bytes) => {
+				let cloned_bytes = bytes.clone();
+				Box::pin(stream::once(async move { Ok((*cloned_bytes).clone()) }))
+			},
+			Err(err) => {
+				let cloned_err = err.clone();
+				Box::pin(stream::once(async move { Err(MockError::from(cloned_err)) }))
+			},
+		}
+	}
+	
 	//		headers																
 	pub(crate) fn headers(&self) -> &HeaderMap {
 		&self.headers
@@ -95,7 +119,7 @@ impl MockResponse {
 	
 	//		text																
 	pub(crate) async fn text(&self) -> Result<Arc<String>, MockError> {
-		self.body.clone()
+		self.bytes().await.map(|bytes| Arc::new(String::from_utf8(bytes.to_vec()).unwrap()))
 	}
 }
 
@@ -135,7 +159,6 @@ pub(crate) fn create_mock_response(
 	let mut csprng    = OsRng{};
 	let key           = SigningKey::generate(&mut csprng);
 	let signature     = body.as_ref().map(|body| key.sign(body.as_ref()).to_string()).unwrap_or_else(|_| s!(""));
-	let body          = body.map(Arc::new).map_err(|err| err);
 	let mock_response = MockResponse {
 		status,
 		headers: {
@@ -150,9 +173,28 @@ pub(crate) fn create_mock_response(
 			}
 			headers
 		},
-		body:    body.clone(),
+		body:    body.map(|str| Arc::new(Bytes::copy_from_slice(str.as_bytes()))).map_err(|err| err),
 	};
 	(mock_response, key.verifying_key())
+}
+
+//		create_mock_binary_response												
+pub(crate) fn create_mock_binary_response(
+	status:       StatusCode,
+	content_type: Option<String>,
+	body:         Result<&[u8], MockError>,
+) -> MockResponse {
+	MockResponse {
+		status,
+		headers: {
+			let mut headers = HeaderMap::new();
+			if let Some(content_type) = &content_type {
+				drop(headers.insert(CONTENT_TYPE, content_type.parse().unwrap()));
+			}
+			headers
+		},
+		body:    body.map(|bytes| Arc::new(bytes.to_vec().into())).map_err(|err| err),
+	}
 }
 
 
