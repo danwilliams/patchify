@@ -62,7 +62,7 @@ pub(crate) trait RequestBuilder {
 //		Structs
 
 //		MockError																
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct MockError {}
 
 //󰭅		Display																	
@@ -74,7 +74,7 @@ impl Display for MockError {
 }
 
 //		MockResponse															
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct MockResponse {
 	pub(crate) status:  StatusCode,
 	pub(crate) headers: HeaderMap,

@@ -36,9 +36,9 @@ use tokio::{
 use tracing::{error, info};
 
 #[cfg(not(test))]
-use reqwest::Client;
+use reqwest::{Client, Response};
 #[cfg(test)]
-use crate::mocks::{Client as HttpClient, MockClient as Client, RequestBuilder};
+use crate::mocks::{Client as HttpClient, MockClient as Client, MockResponse as Response, RequestBuilder};
 
 
 
@@ -226,7 +226,14 @@ impl Updater {
 	/// 
 	async fn check_for_updates(&self) {
 		info!("Checking for updates");
-		match self.request::<LatestVersionResponse>("latest").await {
+		let (url, response) = match self.request("latest").await {
+			Ok((url, response)) => (url, response),
+			Err(err)            => {
+				error!("Error checking for updates: {err}");
+				return;
+			},
+		};
+		match self.decode_and_verify::<LatestVersionResponse>(url, response).await {
 			Ok(json) => {
 				if json.version > self.config.version {
 					info!("New version {} available", json.version);
@@ -246,17 +253,11 @@ impl Updater {
 	/// 
 	/// # Errors
 	/// 
-	/// * [`UpdaterError::FailedSignatureVerification`]
 	/// * [`UpdaterError::HttpError`]
 	/// * [`UpdaterError::HttpRequestFailed`]
-	/// * [`UpdaterError::InvalidBody`]
-	/// * [`UpdaterError::InvalidPayload`]
-	/// * [`UpdaterError::InvalidSignature`]
 	/// * [`UpdaterError::InvalidUrl`]
-	/// * [`UpdaterError::MissingSignature`]
-	/// * [`UpdaterError::UnexpectedContentType`]
 	/// 
-	async fn request<T: DeserializeOwned>(&self, endpoint: &str) -> Result<T, UpdaterError> {
+	async fn request(&self, endpoint: &str) -> Result<(Url, Response), UpdaterError> {
 		//		Perform request													
 		let Ok(url)  = self.config.api.join(endpoint) else {
 			return Err(UpdaterError::InvalidUrl(self.config.api.clone(), endpoint.to_owned()));
@@ -269,6 +270,25 @@ impl Updater {
 		if !status.is_success() {
 			return Err(UpdaterError::HttpError(url, status));
 		}
+		Ok((url, response))
+	}
+	
+	//		decode_and_verify													
+	/// Decodes a JSON HTTP response body and verifies signature.
+	/// 
+	/// This function accepts an HTTP response that contains a JSON payload,
+	/// decodes it, and verifies the signature against the public key.
+	/// 
+	/// # Errors
+	/// 
+	/// * [`UpdaterError::FailedSignatureVerification`]
+	/// * [`UpdaterError::InvalidBody`]
+	/// * [`UpdaterError::InvalidPayload`]
+	/// * [`UpdaterError::InvalidSignature`]
+	/// * [`UpdaterError::MissingSignature`]
+	/// * [`UpdaterError::UnexpectedContentType`]
+	/// 
+	async fn decode_and_verify<T: DeserializeOwned>(&self, url: Url, response: Response) -> Result<T, UpdaterError> {
 		//		Check content type												
 		let content_type = response.headers().get(CONTENT_TYPE).and_then(|h| h.to_str().ok()).unwrap_or("").to_owned();
 		if content_type != "application/json" {

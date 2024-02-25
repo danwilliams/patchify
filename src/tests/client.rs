@@ -4,11 +4,12 @@
 
 use super::*;
 use crate::mocks::*;
+use assert_json_diff::assert_json_eq;
 use claims::assert_err_eq;
 use ed25519_dalek::SigningKey;
 use rand::rngs::OsRng;
 use reqwest::StatusCode;
-use serde_json::json;
+use serde_json::{Value as JsonValue, json};
 
 
 
@@ -93,35 +94,13 @@ mod updater {
 			public_key,
 			mock_client,
 		);
-		let response = updater.request::<LatestVersionResponse>("latest").await.unwrap();
-		assert_eq!(response.version, Version::new(3, 3, 3));
-	}
-	#[tokio::test]
-	async fn request__err_failed_signature_verification() {
-		let url                          = "https://api.example.com/api/latest";
-		let mut csprng                   = OsRng{};
-		let other_public_key             = SigningKey::generate(&mut csprng).verifying_key();
-		let (mock_response, _public_key) = create_mock_response(
-			StatusCode::OK,
-			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("3.3.3"),
-			}).to_string()),
-			ResponseSignature::Generate,
-		);
-		let mock_client = create_mock_client(
-			url,
-			Ok(mock_response),
-		);
-		let updater = setup_safe_updater(
-			Version::new(1, 0, 0),
-			"https://api.example.com/api/",
-			other_public_key,
-			mock_client,
-		);
-		let err = updater.request::<LatestVersionResponse>("latest").await;
-		assert_err_eq!(err.clone(), UpdaterError::FailedSignatureVerification(url.parse().unwrap()));
-		assert_eq!(err.unwrap_err().to_string(), format!("Failed signature verification for response from {url}"));
+		let (url2, response)   = updater.request("latest").await.unwrap();
+		let parsed:  JsonValue = serde_json::from_str(&response.text().await.unwrap()).unwrap();
+		let crafted: JsonValue = json!({
+			"version": s!("3.3.3"),
+		});
+		assert_eq!(url2.as_str(), url);
+		assert_json_eq!(parsed, crafted);
 	}
 	#[tokio::test]
 	async fn request__err_http_error() {
@@ -145,7 +124,7 @@ mod updater {
 			public_key,
 			mock_client,
 		);
-		let err = updater.request::<LatestVersionResponse>("latest").await;
+		let err = updater.request("latest").await;
 		assert_err_eq!(err.clone(), UpdaterError::HttpError(url.parse().unwrap(), status));
 		assert_eq!(err.unwrap_err().to_string(), format!("HTTP status code {status} received when calling {url}"));
 	}
@@ -163,81 +142,9 @@ mod updater {
 			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
 			mock_client,
 		);
-		let err = updater.request::<LatestVersionResponse>("latest").await;
+		let err = updater.request("latest").await;
 		assert_err_eq!(err.clone(), UpdaterError::HttpRequestFailed(url.parse().unwrap(), err_msg.to_owned()));
 		assert_eq!(err.unwrap_err().to_string(), format!("HTTP request to {url} failed: {err_msg}"));
-	}
-	#[tokio::test]
-	async fn request__err_invalid_body() {
-		let url                         = "https://api.example.com/api/latest";
-		let (mock_response, public_key) = create_mock_response(
-			StatusCode::OK,
-			Some(s!("application/json")),
-			Err(MockError {}),
-			ResponseSignature::Use(s!("dummy signature")),
-		);
-		let mock_client = create_mock_client(
-			url,
-			Ok(mock_response),
-		);
-		let updater = setup_safe_updater(
-			Version::new(1, 0, 0),
-			"https://api.example.com/api/",
-			public_key,
-			mock_client,
-		);
-		let err = updater.request::<LatestVersionResponse>("latest").await;
-		assert_err_eq!(err.clone(), UpdaterError::InvalidBody(url.parse().unwrap()));
-		assert_eq!(err.unwrap_err().to_string(), format!("Invalid HTTP body received from {url}"));
-	}
-	#[tokio::test]
-	async fn request__err_invalid_payload() {
-		let url                         = "https://api.example.com/api/latest";
-		let (mock_response, public_key) = create_mock_response(
-			StatusCode::OK,
-			Some(s!("application/json")),
-			Ok(s!("{invalid json: 3.3.3")),
-			ResponseSignature::Generate,
-		);
-		let mock_client = create_mock_client(
-			url,
-			Ok(mock_response),
-		);
-		let updater = setup_safe_updater(
-			Version::new(1, 0, 0),
-			"https://api.example.com/api/",
-			public_key,
-			mock_client,
-		);
-		let err = updater.request::<LatestVersionResponse>("latest").await;
-		assert_err_eq!(err.clone(), UpdaterError::InvalidPayload(url.parse().unwrap()));
-		assert_eq!(err.unwrap_err().to_string(), format!("Invalid payload received from {url}"));
-	}
-	#[tokio::test]
-	async fn request__err_invalid_signature() {
-		let url                         = "https://api.example.com/api/latest";
-		let signature                   = s!("invalid signature");
-		let (mock_response, public_key) = create_mock_response(
-			StatusCode::OK,
-			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("3.3.3"),
-			}).to_string()),
-			ResponseSignature::Use(signature.clone()),
-		);
-		let mock_client = create_mock_client(
-			url,
-			Ok(mock_response),
-		);
-		let updater = setup_safe_updater(
-			Version::new(1, 0, 0),
-			"https://api.example.com/api/",
-			public_key,
-			mock_client,
-		);
-		let err = updater.request::<LatestVersionResponse>("latest").await;
-		assert_err_eq!(err.clone(), UpdaterError::InvalidSignature(url.parse().unwrap(), signature.clone()));
-		assert_eq!(err.unwrap_err().to_string(), format!(r#"Invalid signature header "{signature}" received from {url}"#));
 	}
 	#[tokio::test]
 	async fn request__err_invalid_url() {
@@ -249,12 +156,117 @@ mod updater {
 			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
 			MockClient::new(),
 		);
-		let err = updater.request::<LatestVersionResponse>(endpoint).await;
+		let err = updater.request(endpoint).await;
 		assert_err_eq!(err.clone(), UpdaterError::InvalidUrl(base.parse().unwrap(), endpoint.to_owned()));
 		assert_eq!(err.unwrap_err().to_string(), format!("Invalid URL specified: {base} plus {endpoint}"));
 	}
+	
+	//		decode_and_verify													
 	#[tokio::test]
-	async fn request__err_missing_signature() {
+	async fn decode_and_verify() {
+		let url                         = "https://api.example.com/api/latest";
+		let (mock_response, public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Ok(json!({
+				"version": s!("3.3.3"),
+			}).to_string()),
+			ResponseSignature::Generate,
+		);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			public_key,
+			MockClient::new(),
+		);
+		let response = updater.decode_and_verify::<LatestVersionResponse>(url.parse().unwrap(), mock_response).await.unwrap();
+		assert_eq!(response.version, Version::new(3, 3, 3));
+	}
+	#[tokio::test]
+	async fn decode_and_verify__err_failed_signature_verification() {
+		let url                          = "https://api.example.com/api/latest";
+		let mut csprng                   = OsRng{};
+		let other_public_key             = SigningKey::generate(&mut csprng).verifying_key();
+		let (mock_response, _public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Ok(json!({
+				"version": s!("3.3.3"),
+			}).to_string()),
+			ResponseSignature::Generate,
+		);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			other_public_key,
+			MockClient::new(),
+		);
+		let err = updater.decode_and_verify::<LatestVersionResponse>(url.parse().unwrap(), mock_response).await;
+		assert_err_eq!(err.clone(), UpdaterError::FailedSignatureVerification(url.parse().unwrap()));
+		assert_eq!(err.unwrap_err().to_string(), format!("Failed signature verification for response from {url}"));
+	}
+	#[tokio::test]
+	async fn decode_and_verify__err_invalid_body() {
+		let url                         = "https://api.example.com/api/latest";
+		let (mock_response, public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Err(MockError {}),
+			ResponseSignature::Use(s!("dummy signature")),
+		);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			public_key,
+			MockClient::new(),
+		);
+		let err = updater.decode_and_verify::<LatestVersionResponse>(url.parse().unwrap(), mock_response).await;
+		assert_err_eq!(err.clone(), UpdaterError::InvalidBody(url.parse().unwrap()));
+		assert_eq!(err.unwrap_err().to_string(), format!("Invalid HTTP body received from {url}"));
+	}
+	#[tokio::test]
+	async fn decode_and_verify__err_invalid_payload() {
+		let url                         = "https://api.example.com/api/latest";
+		let (mock_response, public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Ok(s!("{invalid json: 3.3.3")),
+			ResponseSignature::Generate,
+		);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			public_key,
+			MockClient::new(),
+		);
+		let err = updater.decode_and_verify::<LatestVersionResponse>(url.parse().unwrap(), mock_response).await;
+		assert_err_eq!(err.clone(), UpdaterError::InvalidPayload(url.parse().unwrap()));
+		assert_eq!(err.unwrap_err().to_string(), format!("Invalid payload received from {url}"));
+	}
+	#[tokio::test]
+	async fn decode_and_verify__err_invalid_signature() {
+		let url                         = "https://api.example.com/api/latest";
+		let signature                   = s!("invalid signature");
+		let (mock_response, public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Ok(json!({
+				"version": s!("3.3.3"),
+			}).to_string()),
+			ResponseSignature::Use(signature.clone()),
+		);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			public_key,
+			MockClient::new(),
+		);
+		let err = updater.decode_and_verify::<LatestVersionResponse>(url.parse().unwrap(), mock_response).await;
+		assert_err_eq!(err.clone(), UpdaterError::InvalidSignature(url.parse().unwrap(), signature.clone()));
+		assert_eq!(err.unwrap_err().to_string(), format!(r#"Invalid signature header "{signature}" received from {url}"#));
+	}
+	#[tokio::test]
+	async fn decode_and_verify__err_missing_signature() {
 		let url                         = "https://api.example.com/api/latest";
 		let (mock_response, public_key) = create_mock_response(
 			StatusCode::OK,
@@ -264,22 +276,18 @@ mod updater {
 			}).to_string()),
 			ResponseSignature::Omit,
 		);
-		let mock_client = create_mock_client(
-			url,
-			Ok(mock_response),
-		);
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
 			public_key,
-			mock_client,
+			MockClient::new(),
 		);
-		let err = updater.request::<LatestVersionResponse>("latest").await;
+		let err = updater.decode_and_verify::<LatestVersionResponse>(url.parse().unwrap(), mock_response).await;
 		assert_err_eq!(err.clone(), UpdaterError::MissingSignature(url.parse().unwrap()));
 		assert_eq!(err.unwrap_err().to_string(), format!("HTTP response from {url} does not contain a signature header"));
 	}
 	#[tokio::test]
-	async fn request__err_unexpected_content_type() {
+	async fn decode_and_verify__err_unexpected_content_type() {
 		let url                         = "https://api.example.com/api/latest";
 		let content_type                = s!("text/plain");
 		let expected_content_type       = s!("application/json");
@@ -291,17 +299,13 @@ mod updater {
 			}).to_string()),
 			ResponseSignature::Generate,
 		);
-		let mock_client = create_mock_client(
-			url,
-			Ok(mock_response),
-		);
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
 			public_key,
-			mock_client,
+			MockClient::new(),
 		);
-		let err = updater.request::<LatestVersionResponse>("latest").await;
+		let err = updater.decode_and_verify::<LatestVersionResponse>(url.parse().unwrap(), mock_response).await;
 		assert_err_eq!(err.clone(), UpdaterError::UnexpectedContentType(url.parse().unwrap(), content_type.clone(), expected_content_type.clone()));
 		assert_eq!(err.unwrap_err().to_string(), format!(r#"HTTP response from {url} had unexpected content type: "{content_type}", expected: "{expected_content_type}""#));
 	}
