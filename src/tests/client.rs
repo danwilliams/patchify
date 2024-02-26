@@ -35,6 +35,7 @@ fn setup_safe_updater(
 	//	The Updater instance needs to be created manually in order to bypass the
 	//	actions performed in the new() method
 	Updater {
+		actions:     AtomicUsize::new(0),
 		config:      Config {
 			version,
 			api,
@@ -53,12 +54,13 @@ fn setup_safe_updater(
 
 //		Updater																	
 #[cfg(test)]
-mod updater {
+mod updater_construction {
 	use super::*;
 	
 	//		new																	
 	#[tokio::test]
 	async fn new() {
+		let order   = Ordering::SeqCst;
 		let updater = Updater::new(Config {
 			version:          Version::new(1, 0, 0),
 			api:              "https://api.example.com".parse().unwrap(),
@@ -66,12 +68,121 @@ mod updater {
 			check_on_startup: false,
 			check_interval:   Some(Duration::from_secs(60 * 60)),
 		});
+		assert_eq!(updater.actions.load(order),     0);
 		assert_eq!(updater.config.version,          Version::new(1, 0, 0));
 		assert_eq!(updater.config.api,              "https://api.example.com".parse().unwrap());
 		assert_eq!(updater.config.key,              VerifyingKey::from_bytes(&[0; 32]).unwrap());
 		assert_eq!(updater.config.check_on_startup, false);
 		assert_eq!(updater.config.check_interval,   Some(Duration::from_secs(60 * 60)));
 	}
+}
+
+#[cfg(test)]
+mod updater_public {
+	use super::*;
+	
+	//		register_action														
+	#[tokio::test]
+	async fn register_action() {
+		let order   = Ordering::SeqCst;
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		assert_eq!(updater.actions.load(order), 0);
+		assert_eq!(updater.register_action(),   Some(1));
+		assert_eq!(updater.actions.load(order), 1);
+		assert_eq!(updater.register_action(),   Some(2));
+		assert_eq!(updater.actions.load(order), 2);
+	}
+	#[tokio::test]
+	async fn register_action__overflow() {
+		let order   = Ordering::SeqCst;
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		let _ = updater.actions.fetch_add(usize::MAX - 1, order);
+		assert_eq!(updater.actions.load(order), usize::MAX - 1);
+		assert_eq!(updater.register_action(),   Some(usize::MAX));
+		assert_eq!(updater.actions.load(order), usize::MAX);
+		assert_eq!(updater.register_action(),   None);
+		assert_eq!(updater.actions.load(order), usize::MAX);
+	}
+	
+	//		deregister_action													
+	#[tokio::test]
+	async fn deregister_action() {
+		let order   = Ordering::SeqCst;
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		assert_eq!(updater.actions.load(order), 0);
+		assert_eq!(updater.register_action(),   Some(1));
+		assert_eq!(updater.register_action(),   Some(2));
+		assert_eq!(updater.register_action(),   Some(3));
+		assert_eq!(updater.actions.load(order), 3);
+		assert_eq!(updater.deregister_action(), Some(2));
+		assert_eq!(updater.deregister_action(), Some(1));
+		assert_eq!(updater.actions.load(order), 1);
+		assert_eq!(updater.deregister_action(), Some(0));
+		assert_eq!(updater.actions.load(order), 0);
+	}
+	#[tokio::test]
+	async fn deregister_action__underflow() {
+		let order   = Ordering::SeqCst;
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		assert_eq!(updater.actions.load(order), 0);
+		assert_eq!(updater.register_action(),   Some(1));
+		assert_eq!(updater.actions.load(order), 1);
+		assert_eq!(updater.deregister_action(), Some(0));
+		assert_eq!(updater.actions.load(order), 0);
+		assert_eq!(updater.deregister_action(), None);
+		assert_eq!(updater.actions.load(order), 0);
+	}
+	
+	//		is_safe_to_update													
+	#[tokio::test]
+	async fn is_safe_to_update() {
+		let order   = Ordering::SeqCst;
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		assert_eq!(updater.actions.load(order), 0);
+		assert_eq!(updater.is_safe_to_update(), true);
+		assert_eq!(updater.register_action(),   Some(1));
+		assert_eq!(updater.is_safe_to_update(), false);
+		assert_eq!(updater.register_action(),   Some(2));
+		assert_eq!(updater.is_safe_to_update(), false);
+		assert_eq!(updater.deregister_action(), Some(1));
+		assert_eq!(updater.is_safe_to_update(), false);
+		assert_eq!(updater.deregister_action(), Some(0));
+		assert_eq!(updater.is_safe_to_update(), true);
+		assert_eq!(updater.register_action(),   Some(1));
+		assert_eq!(updater.is_safe_to_update(), false);
+		assert_eq!(updater.deregister_action(), Some(0));
+		assert_eq!(updater.is_safe_to_update(), true);
+	}
+}
+
+#[cfg(test)]
+mod updater_private {
+	use super::*;
 	
 	//		download_update														
 	#[tokio::test]

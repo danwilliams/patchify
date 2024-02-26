@@ -10,7 +10,10 @@ mod tests;
 
 //		Packages
 
-use core::fmt::{Display, self};
+use core::{
+	fmt::{Display, self},
+	sync::atomic::{AtomicUsize, Ordering},
+};
 use ed25519_dalek::{Signature, VerifyingKey};
 use flume::{Sender, self};
 use futures_util::StreamExt;
@@ -173,6 +176,11 @@ pub struct Config {
 #[derive(Debug)]
 pub struct Updater {
 	//		Private properties													
+	/// A counter of critical actions that are currently active. This is used to
+	/// prevent the updater from stopping the application while a critical
+	/// action is in progress.
+	actions:     AtomicUsize,
+	
 	/// The configuration for the updater service.
 	config:      Config,
 	
@@ -188,6 +196,8 @@ pub struct Updater {
 
 //󰭅		Updater																	
 impl Updater {
+	//		Constructors														
+	
 	//		new																	
 	/// Creates a new updater service instance.
 	/// 
@@ -207,6 +217,7 @@ impl Updater {
 		let http_client        = Client::new();
 		let (sender, receiver) = flume::unbounded();
 		let updater            = Arc::new(Self {
+			actions:     AtomicUsize::new(0),
 			config,
 			http_client,
 			queue:       sender,
@@ -240,6 +251,64 @@ impl Updater {
 		}
 		updater
 	}
+	
+	//		Public methods														
+	
+	//		register_action														
+	/// Registers a critical action.
+	/// 
+	/// This function increments the critical actions counter, preventing the
+	/// application from being updated while the critical action is in progress.
+	/// 
+	/// It returns the *likely new value* of the counter, or [`None`] if the
+	/// counter overflows. The new value is likely rather than guaranteed due to
+	/// the effect of concurrent updates, and therefore is the value known and
+	/// set at the time it was incremented, and may not be the value by the time
+	/// the function returns.
+	/// 
+	pub fn register_action(&self) -> Option<usize> {
+		let value = self.actions
+			.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |value| { value.checked_add(1) })
+			.ok()?
+		;
+		Some(value.saturating_add(1))
+	}
+	
+	//		deregister_action													
+	/// Deregisters a critical action.
+	/// 
+	/// This function decrements the critical actions counter, allowing the
+	/// application to be updated once the count reaches zero.
+	/// 
+	/// It returns the *likely new value* of the counter, or [`None`] if the
+	/// counter underflows. The new value is likely rather than guaranteed due
+	/// to the effect of concurrent updates, and therefore is the value known
+	/// and set at the time it was incremented, and may not be the value by the
+	/// time the function returns.
+	/// 
+	pub fn deregister_action(&self) -> Option<usize> {
+		let value = self.actions
+			.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |value| { value.checked_sub(1) })
+			.ok()?
+		;
+		Some(value.saturating_sub(1))
+	}
+	
+	//		is_safe_to_update													
+	/// Checks if it is safe to update.
+	/// 
+	/// This function checks the critical actions counter, to see if it is safe
+	/// to update the application — i.e. if the counter is zero.
+	/// 
+	/// Note that at present this is a naive implementation that does not lock
+	/// the counter, and so it is possible that the counter could change between
+	/// the time of checking and the time of updating.
+	/// 
+	pub fn is_safe_to_update(&self) -> bool {
+		self.actions.load(Ordering::SeqCst) == 0
+	}
+	
+	//		Private methods														
 	
 	//		check_for_updates													
 	/// Checks for updates.
@@ -432,6 +501,8 @@ impl Updater {
 		};
 		Ok(parsed)
 	}
+	
+	//																			
 }
 
 //󰭅		Drop																	

@@ -48,7 +48,7 @@
           - [x] Every X interval of time
       - [x] Public key to use for verifying provided information
   - [ ] **Status**
-      - [ ] Critical actions counter, with methods to increment and decrement
+      - [x] Critical actions counter, with methods to increment and decrement
       - [ ] Central status enum — update at each stage
       - [ ] Method to check if an update has been started
       - [ ] Only start new critical actions if the status allows it
