@@ -47,21 +47,21 @@
           - [x] Every time the application starts
           - [x] Every X interval of time
       - [x] Public key to use for verifying provided information
-  - [ ] **Status**
+  - [x] **Status**
       - [x] Critical actions counter, with methods to increment and decrement
-      - [ ] Central status enum — update at each stage
-      - [ ] Method to check if an update has been started
-      - [ ] Only start new critical actions if the status allows it
-  - [ ] **Check for updates**
+      - [x] Central status enum — update at each stage
+      - [x] Method to check if an update has been started
+      - [x] Only start new critical actions if the status allows it
+  - [x] **Check for updates**
       - [x] Query the server at intervals
-          - [ ] Check no upgrade is currently in progress
+          - [x] Check no upgrade is currently in progress
           - [ ] Send details of the version in use
           - [x] Check response against version in use
           - [x] Use the public key to verify the legitimacy of the provided
                 information
   - [ ] **Perform the update**
-      - [ ] Make update status information available
-          - [ ] Update central status enum at each stage
+      - [x] Make update status information available
+          - [x] Update central status enum at each stage
           - [ ] Broadcast the status updates to interested subscribers
       - [x] Download the new binary
           - [x] Save into a tmpdir — this will be auto-cleaned when the
@@ -73,10 +73,10 @@
                 information
       - [ ] Replace the installed application binary
           - [ ] This may need finesse under Windows
-      - [ ] Shut down the current application activity
-          - [ ] Update the central status to indicate that an upgrade is
+      - [x] Shut down the current application activity
+          - [x] Update the central status to indicate that an upgrade is
                 underway
-          - [ ] Wait until the critical actions counter has reached zero, then
+          - [x] Wait until the critical actions counter has reached zero, then
                 trigger the restart
       - [ ] Start the new version
           - [ ] Check that the new version has started correctly

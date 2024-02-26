@@ -26,6 +26,7 @@ ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
 flume = { version = "0.11.0", features = ["async"] }
 futures-util = "0.3.30"
 hex = "0.4.3"
+parking_lot = "0.12.1"
 reqwest = { version = "0.11.24", features = ["stream"] }
 rubedo = "0.4.6"
 semver = { version = "1.0.21", features = ["serde"] }

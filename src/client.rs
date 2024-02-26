@@ -18,6 +18,7 @@ use ed25519_dalek::{Signature, VerifyingKey};
 use flume::{Sender, self};
 use futures_util::StreamExt;
 use hex;
+use parking_lot::RwLock;
 use reqwest::{
 	StatusCode,
 	Url,
@@ -53,6 +54,53 @@ use crate::mocks::{Client as HttpClient, MockClient as Client, MockResponse as R
 
 
 //		Enums
+
+//		Status																	
+/// The possible statuses that an [`Updater`] can have.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum Status {
+	/// Nothing interesting is currently happening — there is no active upgrade
+	/// underway or pending.
+	Idle,
+	
+	/// The updater is currently checking whether there is a newer version of
+	/// the application available.
+	Checking,
+	
+	/// A newer version of the application is available, and the updater is
+	/// currently downloading the release file.
+	Downloading(Version, u8),
+	
+	/// A newer version of the application is available, and the updater is
+	/// currently installing it.
+	Installing(Version),
+	
+	/// A newer version of the application is available, and the updater is
+	/// currently waiting to start the upgrade process, but is blocked from
+	/// doing so due to one or more critical actions being in progress.
+	PendingRestart(Version),
+	
+	/// A newer version of the application is available, and the updater is
+	/// currently in the process of restarting the application to apply the
+	/// upgrade. No new critical actions are allowed to start.
+	Restarting(Version),
+}
+
+//󰭅		Display																	
+impl Display for Status {
+	//		fmt																	
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", match *self {
+			Self::Idle                                  => s!(     "Idle"),
+			Self::Checking                              => s!(     "Checking"),
+			Self::Installing(ref version)               => format!("Installing: {version}"),
+			Self::Downloading(ref version, ref percent) => format!("Downloading: {version} ({percent}%)"),
+			Self::PendingRestart(ref version)           => format!("Pending restart: {version}"),
+			Self::Restarting(ref version)               => format!("Restarting: {version}"),
+		})
+	}
+}
 
 //		UpdaterError															
 /// Errors that can occur when trying to update.
@@ -192,6 +240,9 @@ pub struct Updater {
 	/// timer. This is the sender side only. A queue is used so that the timer
 	/// can run in a separate thread, but be stopped when required.
 	queue:       Sender<()>,
+	
+	/// The current status of the updater.
+	status:      RwLock<Status>,
 }
 
 //󰭅		Updater																	
@@ -221,6 +272,7 @@ impl Updater {
 			config,
 			http_client,
 			queue:       sender,
+			status:      RwLock::new(Status::Idle),
 		});
 		if updater.config.check_on_startup {
 			let startup_updater = Arc::clone(&updater);
@@ -261,12 +313,21 @@ impl Updater {
 	/// application from being updated while the critical action is in progress.
 	/// 
 	/// It returns the *likely new value* of the counter, or [`None`] if the
-	/// counter overflows. The new value is likely rather than guaranteed due to
+	/// counter overflows or if starting a new action is not permitted due to a
+	/// pending update. The new value is likely rather than guaranteed due to
 	/// the effect of concurrent updates, and therefore is the value known and
 	/// set at the time it was incremented, and may not be the value by the time
 	/// the function returns.
 	/// 
 	pub fn register_action(&self) -> Option<usize> {
+		match self.status() {
+			Status::Idle              |
+			Status::Checking          |
+			Status::Downloading(_, _) |
+			Status::Installing(_)     => {},
+			Status::PendingRestart(_) |
+			Status::Restarting(_)     => return None,
+		}
 		let value = self.actions
 			.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |value| { value.checked_add(1) })
 			.ok()?
@@ -286,12 +347,25 @@ impl Updater {
 	/// and set at the time it was incremented, and may not be the value by the
 	/// time the function returns.
 	/// 
+	/// If a restart is pending, then when the critical actions counter reaches
+	/// zero, the restart will be triggered.
+	/// 
 	pub fn deregister_action(&self) -> Option<usize> {
-		let value = self.actions
+		let mut value = self.actions
 			.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |value| { value.checked_sub(1) })
 			.ok()?
 		;
-		Some(value.saturating_sub(1))
+		value = value.saturating_sub(1);
+		if let Status::PendingRestart(version) = self.status() {
+			if value > 0 {
+				info!("Pending restart: {} critical actions in progress", self.actions.load(Ordering::SeqCst));
+			} else {
+				//	TODO: Restart application
+				self.set_status(Status::Restarting(version));
+				info!("Restarting");
+			}
+		}
+		Some(value)
 	}
 	
 	//		is_safe_to_update													
@@ -308,6 +382,31 @@ impl Updater {
 		self.actions.load(Ordering::SeqCst) == 0
 	}
 	
+	//		status																
+	/// Gets the current status of the updater.
+	/// 
+	/// This function returns the current status of the updater, correct at the
+	/// time of calling.
+	/// 
+	/// Note that the status may change between the time of calling and the time
+	/// of processing the result.
+	/// 
+	pub fn status(&self) -> Status {
+		let lock = self.status.read();                                   //  //
+		(*lock).clone()
+	}
+	
+	//		set_status															
+	/// Sets the current status of the updater.
+	/// 
+	/// This function changes the current status of the updater to the specified
+	/// value.
+	/// 
+	pub fn set_status(&self, status: Status) {
+		let mut lock = self.status.write();                              //  //
+		*lock        = status;
+	}
+	
 	//		Private methods														
 	
 	//		check_for_updates													
@@ -318,11 +417,17 @@ impl Updater {
 	/// application will be restarted.
 	/// 
 	async fn check_for_updates(&self) {
+		//		Ensure no updates are already underway							
+		if self.status() != Status::Idle {
+			return;
+		}
 		//		Get latest version												
+		self.set_status(Status::Checking);
 		info!("Checking for updates");
 		let (url, response) = match self.request("latest").await {
 			Ok(data) => data,
 			Err(err) => {
+				self.set_status(Status::Idle);
 				error!("Error checking for updates: {err}");
 				return;
 			},
@@ -330,17 +435,21 @@ impl Updater {
 		let version = match self.decode_and_verify::<LatestVersionResponse>(url, response).await {
 			Ok(json) => json.version,
 			Err(err) => {
+				self.set_status(Status::Idle);
 				error!("Error checking for updates: {err}");
 				return;
 			},
 		};
 		//		Compare to current version										
 		if version <= self.config.version {
+			self.set_status(Status::Idle);
 			info!("The current version {} is the latest available", self.config.version);
 			return;
 		}
 		info!("New version {} available", version);
 		//		Download update file											
+		self.set_status(Status::Downloading(version.clone(), 0));
+		info!("Downloading update {version}");
 		let (_download_dir, _update_path, file_hash) = match self.download_update(&version).await {
 			Ok(data) => data,
 			Err(err) => {
@@ -348,15 +457,27 @@ impl Updater {
 				return;
 			},
 		};
+		info!("Update file downloaded");
+		//		Verify update file												
+		info!("Verifying update {version}");
 		if let Err(err) = self.verify_update(&version, &file_hash).await {
 			error!("Error verifying update file: {err}");
 			return;
 		}
 		info!("Update file verified");
 		//		Install update													
+		self.set_status(Status::Installing(version.clone()));
+		info!("Installing update");
 		//	TODO: Install update
 		//		Restart application												
+		if !self.is_safe_to_update() {
+			self.set_status(Status::PendingRestart(version.clone()));
+			info!("Pending restart: {} critical actions in progress", self.actions.load(Ordering::SeqCst));
+			return;
+		}
 		//	TODO: Restart application
+		self.set_status(Status::Restarting(version.clone()));
+		info!("Restarting");
 	}
 	
 	//		download_update														
@@ -374,7 +495,6 @@ impl Updater {
 	/// * [`UpdaterError::UnexpectedContentType`]
 	/// 
 	async fn download_update(&self, version: &Version) -> Result<(TempDir, PathBuf, [u8; 32]), UpdaterError> {
-		info!("Downloading update {version}");
 		//		Prepare file to download to										
 		let download_dir = tempdir().map_err(|err| UpdaterError::UnableToCreateTempDir(err.to_string()))?;
 		let update_path  = download_dir.path().join(format!("update-{version}"));
@@ -413,7 +533,6 @@ impl Updater {
 	/// * [`UpdaterError::FailedHashVerification`]
 	/// 
 	async fn verify_update(&self, version: &Version, hash: &[u8; 32]) -> Result<(), UpdaterError> {
-		info!("Verifying update {version}");
 		let (url, response) = self.request(&format!("hashes/{version}")).await?;
 		match self.decode_and_verify::<VersionHashResponse>(url.clone(), response).await {
 			Ok(json) => {

@@ -20,7 +20,7 @@ use bytes::Bytes;
 use core::fmt::{Display, self};
 use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
 use futures_util::stream::{Stream, self};
-use mockall::{automock, concretize};
+use mockall::{Sequence, automock, concretize};
 use rand::rngs::OsRng;
 use reqwest::{
 	IntoUrl,
@@ -128,24 +128,25 @@ impl MockResponse {
 //		Functions
 
 //		create_mock_client														
-pub(crate) fn create_mock_client(
-	expected_url:  &str,
-	mock_response: Result<MockResponse, MockError>,
-) -> MockClient {
-	let expected_url: Url = expected_url.parse().unwrap();
-	let mut mock_client   = MockClient::new();
-	let mut mock_request  = MockRequestBuilder::new();
-	let _ = mock_request.expect_send()
-		.times(1)
-		.returning(move || mock_response.clone())
-	;
-	//	Wrap the mock request in an Arc so that it can be cloned
-	let mock_request = Arc::new(mock_request);
-	let _ = mock_client.expect_get()
-		.withf(move |url| url.as_str() == expected_url.as_str())
-		.times(1)
-		.returning(move |_| Arc::clone(&mock_request))
-	;
+pub(crate) fn create_mock_client(responses: Vec<(&str, Result<MockResponse, MockError>)>) -> MockClient {
+	let mut mock_client = MockClient::new();
+	let mut sequence    = Sequence::new();
+	for (expected_url, mock_response) in responses {
+		let expected_url: Url = expected_url.parse().unwrap();
+		let mut mock_request  = MockRequestBuilder::new();
+		let _ = mock_request.expect_send()
+			.times(1)
+			.returning(move || mock_response.clone())
+		;
+		//	Wrap the mock request in an Arc so that it can be cloned
+		let mock_request = Arc::new(mock_request);
+		let _ = mock_client.expect_get()
+			.withf(move |url| url.as_str() == expected_url.as_str())
+			.times(1)
+			.in_sequence(&mut sequence)
+			.returning(move |_| Arc::clone(&mock_request))
+		;
+	}
 	mock_client
 }
 

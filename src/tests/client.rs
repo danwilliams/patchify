@@ -5,7 +5,7 @@
 use super::*;
 use crate::mocks::*;
 use assert_json_diff::assert_json_eq;
-use claims::{assert_err_eq, assert_ok};
+use claims::{assert_err_eq, assert_ok, assert_none, assert_some};
 use ed25519_dalek::SigningKey;
 use rand::rngs::OsRng;
 use reqwest::StatusCode;
@@ -45,6 +45,7 @@ fn setup_safe_updater(
 		},
 		http_client: mock_client,
 		queue:       sender,
+		status:      RwLock::new(Status::Idle),
 	}
 }
 
@@ -74,6 +75,7 @@ mod updater_construction {
 		assert_eq!(updater.config.key,              VerifyingKey::from_bytes(&[0; 32]).unwrap());
 		assert_eq!(updater.config.check_on_startup, false);
 		assert_eq!(updater.config.check_interval,   Some(Duration::from_secs(60 * 60)));
+		assert_eq!(*updater.status.read(),          Status::Idle);
 	}
 }
 
@@ -96,6 +98,27 @@ mod updater_public {
 		assert_eq!(updater.actions.load(order), 1);
 		assert_eq!(updater.register_action(),   Some(2));
 		assert_eq!(updater.actions.load(order), 2);
+	}
+	#[tokio::test]
+	async fn register_action__when_updating() {
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		updater.set_status(Status::Checking);
+		assert_some!(updater.register_action());
+		updater.set_status(Status::Downloading(Version::new(1, 0, 0), 25));
+		assert_some!(updater.register_action());
+		updater.set_status(Status::Installing(Version::new(1, 0, 0)));
+		assert_some!(updater.register_action());
+		updater.set_status(Status::PendingRestart(Version::new(1, 0, 0)));
+		assert_none!(updater.register_action());
+		updater.set_status(Status::Restarting(Version::new(1, 0, 0)));
+		assert_none!(updater.register_action());
+		updater.set_status(Status::Idle);
+		assert_some!(updater.register_action());
 	}
 	#[tokio::test]
 	async fn register_action__overflow() {
@@ -134,6 +157,45 @@ mod updater_public {
 		assert_eq!(updater.actions.load(order), 1);
 		assert_eq!(updater.deregister_action(), Some(0));
 		assert_eq!(updater.actions.load(order), 0);
+	}
+	#[tokio::test]
+	async fn deregister_action__when_updating() {
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		let _ = updater.actions.fetch_add(10, Ordering::SeqCst);
+		updater.set_status(Status::Checking);
+		assert_some!(updater.deregister_action());
+		updater.set_status(Status::Downloading(Version::new(1, 0, 0), 25));
+		assert_some!(updater.deregister_action());
+		updater.set_status(Status::Installing(Version::new(1, 0, 0)));
+		assert_some!(updater.deregister_action());
+		updater.set_status(Status::PendingRestart(Version::new(1, 0, 0)));
+		assert_some!(updater.deregister_action());
+		updater.set_status(Status::Restarting(Version::new(1, 0, 0)));
+		assert_some!(updater.deregister_action());
+		updater.set_status(Status::Idle);
+		assert_some!(updater.deregister_action());
+	}
+	#[tokio::test]
+	async fn deregister_action__when_restart_pending() {
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		let _ = updater.actions.fetch_add(3, Ordering::SeqCst);
+		updater.set_status(Status::PendingRestart(Version::new(1, 0, 0)));
+		assert_eq!(updater.deregister_action(), Some(2));
+		assert_eq!(updater.status(),            Status::PendingRestart(Version::new(1, 0, 0)));
+		assert_eq!(updater.deregister_action(), Some(1));
+		assert_eq!(updater.status(),            Status::PendingRestart(Version::new(1, 0, 0)));
+		assert_eq!(updater.deregister_action(), Some(0));
+		assert_eq!(updater.status(),            Status::Restarting(Version::new(1, 0, 0)));
 	}
 	#[tokio::test]
 	async fn deregister_action__underflow() {
@@ -178,11 +240,144 @@ mod updater_public {
 		assert_eq!(updater.deregister_action(), Some(0));
 		assert_eq!(updater.is_safe_to_update(), true);
 	}
+	
+	//		status																
+	#[tokio::test]
+	async fn status() {
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		assert_eq!(*updater.status.read(), Status::Idle);
+		assert_eq!(updater.status(),       Status::Idle);
+		let mut lock = updater.status.write();
+		*lock        = Status::Restarting(Version::new(1, 0, 0));
+		drop(lock);
+		assert_eq!(*updater.status.read(), Status::Restarting(Version::new(1, 0, 0)));
+		assert_eq!(updater.status(),       Status::Restarting(Version::new(1, 0, 0)));
+	}
+	
+	//		set_status															
+	#[tokio::test]
+	async fn set_status() {
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		assert_eq!(updater.status(), Status::Idle);
+		updater.set_status(Status::Checking);
+		assert_eq!(updater.status(), Status::Checking);
+		updater.set_status(Status::Downloading(Version::new(1, 0, 0), 50));
+		assert_eq!(updater.status(), Status::Downloading(Version::new(1, 0, 0), 50));
+		updater.set_status(Status::Idle);
+		assert_eq!(updater.status(), Status::Idle);
+	}
 }
 
 #[cfg(test)]
 mod updater_private {
 	use super::*;
+	
+	//		check_for_updates													
+	#[tokio::test]
+	async fn check_for_updates__update_check_already_underway() {
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		updater.set_status(Status::Checking);
+		updater.check_for_updates().await;
+		assert_eq!(updater.status(), Status::Checking);
+		updater.set_status(Status::Downloading(Version::new(1, 0, 0), 80));
+		updater.check_for_updates().await;
+		assert_eq!(updater.status(), Status::Downloading(Version::new(1, 0, 0), 80));
+		updater.set_status(Status::Installing(Version::new(1, 0, 0)));
+		updater.check_for_updates().await;
+		assert_eq!(updater.status(), Status::Installing(Version::new(1, 0, 0)));
+		updater.set_status(Status::PendingRestart(Version::new(1, 0, 0)));
+		updater.check_for_updates().await;
+		assert_eq!(updater.status(), Status::PendingRestart(Version::new(1, 0, 0)));
+		updater.set_status(Status::Restarting(Version::new(1, 0, 0)));
+		updater.check_for_updates().await;
+		assert_eq!(updater.status(), Status::Restarting(Version::new(1, 0, 0)));
+	}
+	#[tokio::test]
+	async fn check_for_updates__no_update_available() {
+		let url                         = "https://api.example.com/api/latest";
+		let (mock_response, public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Ok(json!({
+				"version": s!("1.0.0"),
+			}).to_string()),
+			ResponseSignature::Generate,
+		);
+		let mock_client = create_mock_client(vec![
+			(url, Ok(mock_response)),
+		]);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			public_key,
+			mock_client,
+		);
+		assert_eq!(updater.status(), Status::Idle);
+		updater.check_for_updates().await;
+		assert_eq!(updater.status(), Status::Idle);
+	}
+	#[tokio::test]
+	async fn check_for_updates__download_failed() {
+		let version                      = Version::new(2, 3, 4);
+		let url1                         = "https://api.example.com/api/latest";
+		let url2                         = "https://api.example.com/api/releases/2.3.4";
+		let payload                      = b"Test payload";
+		let (mock_response1, public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Ok(json!({
+				"version": s!("2.3.4"),
+			}).to_string()),
+			ResponseSignature::Generate,
+		);
+		let mock_response2 = create_mock_binary_response(
+			StatusCode::OK,
+			//	Intentionally-incorrect content type, to make the process fail
+			Some(s!("text/plain")),
+			Ok(payload),
+		);
+		let mock_client = create_mock_client(vec![
+			(url1, Ok(mock_response1)),
+			(url2, Ok(mock_response2)),
+		]);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			public_key,
+			mock_client,
+		);
+		assert_eq!(updater.status(), Status::Idle);
+		updater.check_for_updates().await;
+		assert_eq!(updater.status(), Status::Downloading(version.clone(), 0));
+		//	TODO: Check download progress is 100%
+	}
+	#[tokio::test]
+	async fn check_for_updates__install_failed() {
+		//	TODO
+	}
+	#[tokio::test]
+	async fn check_for_updates__restart_blocked() {
+		//	TODO
+	}
+	#[tokio::test]
+	async fn check_for_updates__restart_failed() {
+		//	TODO
+	}
 	
 	//		download_update														
 	#[tokio::test]
@@ -195,10 +390,9 @@ mod updater_private {
 			Some(s!("application/octet-stream")),
 			Ok(payload),
 		);
-		let mock_client = create_mock_client(
-			url,
-			Ok(mock_response),
-		);
+		let mock_client = create_mock_client(vec![
+			(url, Ok(mock_response)),
+		]);
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
@@ -235,10 +429,9 @@ mod updater_private {
 			Some(content_type.clone()),
 			Ok(payload),
 		);
-		let mock_client = create_mock_client(
-			url,
-			Ok(mock_response),
-		);
+		let mock_client = create_mock_client(vec![
+			(url, Ok(mock_response)),
+		]);
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
@@ -265,10 +458,9 @@ mod updater_private {
 			}).to_string()),
 			ResponseSignature::Generate,
 		);
-		let mock_client = create_mock_client(
-			url,
-			Ok(mock_response),
-		);
+		let mock_client = create_mock_client(vec![
+			(url, Ok(mock_response)),
+		]);
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
@@ -292,10 +484,9 @@ mod updater_private {
 			}).to_string()),
 			ResponseSignature::Generate,
 		);
-		let mock_client = create_mock_client(
-			url,
-			Ok(mock_response),
-		);
+		let mock_client = create_mock_client(vec![
+			(url, Ok(mock_response)),
+		]);
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
@@ -321,10 +512,9 @@ mod updater_private {
 			}).to_string()),
 			ResponseSignature::Generate,
 		);
-		let mock_client = create_mock_client(
-			url,
-			Ok(mock_response),
-		);
+		let mock_client = create_mock_client(vec![
+			(url, Ok(mock_response)),
+		]);
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
@@ -348,10 +538,9 @@ mod updater_private {
 			}).to_string()),
 			ResponseSignature::Generate,
 		);
-		let mock_client = create_mock_client(
-			url,
-			Ok(mock_response),
-		);
+		let mock_client = create_mock_client(vec![
+			(url, Ok(mock_response)),
+		]);
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
@@ -378,10 +567,9 @@ mod updater_private {
 			}).to_string()),
 			ResponseSignature::Generate,
 		);
-		let mock_client = create_mock_client(
-			url,
-			Ok(mock_response),
-		);
+		let mock_client = create_mock_client(vec![
+			(url, Ok(mock_response)),
+		]);
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
@@ -396,10 +584,9 @@ mod updater_private {
 	async fn request__err_http_request_failed() {
 		let url         = "https://api.example.com/api/latest";
 		let err_msg     = "Mocked Reqwest error";
-		let mock_client = create_mock_client(
-			url,
-			Err(MockError {}),
-		);
+		let mock_client = create_mock_client(vec![
+			(url, Err(MockError {})),
+		]);
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
