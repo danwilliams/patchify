@@ -32,6 +32,7 @@ use serde::{
 };
 use sha2::{Sha256, Digest};
 use std::{
+	env::args,
 	error::Error,
 	os::unix::fs::PermissionsExt,
 	path::PathBuf,
@@ -51,12 +52,17 @@ use tracing::{debug, error, info};
 #[cfg(not(test))]
 use ::{
 	reqwest::{Client, Response},
-	std::env::current_exe,
+	std::{
+		env::current_exe,
+		os::unix::process::CommandExt,
+		process::{Command, Stdio, exit},
+	},
 };
 #[cfg(test)]
 use crate::mocks::{
 	reqwest::{Client as HttpClient, MockClient as Client, MockResponse as Response, RequestBuilder},
 	std_env::mock_current_exe as current_exe,
+	std_process::{FakeCommand as Command, MockStdio as Stdio, mock_exit as exit},
 };
 
 
@@ -416,9 +422,9 @@ impl Updater {
 			if value > 0 {
 				info!("Pending restart: {} critical actions in progress", self.actions.load(Ordering::SeqCst));
 			} else {
-				//	TODO: Restart application
 				self.set_status(Status::Restarting(version));
 				info!("Restarting");
+				Self::restart();
 			}
 		}
 		Some(value)
@@ -552,9 +558,9 @@ impl Updater {
 			info!("Pending restart: {} critical actions in progress", self.actions.load(Ordering::SeqCst));
 			return;
 		}
-		//	TODO: Restart application
 		self.set_status(Status::Restarting(version.clone()));
 		info!("Restarting");
+		Self::restart();
 	}
 	
 	//		download_update														
@@ -735,6 +741,50 @@ impl Updater {
 			UpdaterError::UnableToSetFilePermissions(current_path.clone(), err.to_string())
 		)?;
 		Ok(())
+	}
+	
+	//		restart																
+	/// Restarts the application.
+	/// 
+	/// This function restarts the currently-running application, for the
+	/// primary purpose of replacing it with the newer version.
+	/// 
+	/// It does so while preserving all arguments originally specified. It will
+	/// inherit the standard I/O streams from the current process, ensuring
+	/// seamless input and output behaviour, and will replace the currently
+	/// running process with the new one.
+	/// 
+	/// If the application fails to restart, this function will log an error,
+	/// and then exit. In this situation there's not a lot else to do at
+	/// present, as behaviour in such a scenario is undefined, and given that
+	/// all critical actions have been paused, exiting seems the most sensible
+	/// option. This behaviour will be considered carefully and improved in
+	/// future when it becomes clearer how to handle it.
+	/// 
+	fn restart() {
+		//	Skip the first argument (current executable name)
+		let args         = args().skip(1).collect::<Vec<_>>();
+		//	This should be infallible, as we've just obtained it in the same way in
+		//	the replace_executable() method, but rather than pass that value in here
+		//	we'll obtain it again in order to make things easier given that this can
+		//	be called from two places. This could be improved in future.
+		#[cfg_attr(    feature = "reasons",  allow(clippy::unwrap_used, reason = "Should be infallible"))]
+		#[cfg_attr(not(feature = "reasons"), allow(clippy::unwrap_used))]
+		let current_path = current_exe().unwrap();
+		let err          = Command::new(current_path)
+			.args(args)
+			.stdin(Stdio::inherit())
+			.stdout(Stdio::inherit())
+			.stderr(Stdio::inherit())
+			.exec()
+		;
+		//	A failure to restart the application is fatal to the installer
+		//	process, so although we won't panic, we also won't continue. We'll
+		//	just exit the application. This is a candidate for potential
+		//	improvement in future, to allow for more graceful handling of this
+		//	situation.
+		error!("Failed to restart application: {err}");
+		exit(1);
 	}
 	
 	//																			

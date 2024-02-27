@@ -233,6 +233,9 @@ mod updater_public {
 		assert_eq!(updater.status(),            Status::PendingRestart(Version::new(1, 0, 0)));
 		assert_eq!(updater.deregister_action(), Some(0));
 		assert_eq!(updater.status(),            Status::Restarting(Version::new(1, 0, 0)));
+		//	Due to the status change, the restart() method will now be called. This
+		//	will call FakeCommand::new(), which will return a wrapper around a
+		//	MockCommand that is already set up with the necessary expectations.
 	}
 	#[tokio::test]
 	async fn deregister_action__underflow() {
@@ -953,6 +956,22 @@ mod updater_private {
 	async fn replace_executable__err_unable_to_set_file_permissions() {
 		//	No test for this at present, as it is difficult to simulate a failure.
 		//	It's also quite unlikely to occur.
+	}
+	
+	//		restart																
+	#[tokio::test]
+	async fn restart() {
+		//	We don't actually use the tempdir, but we construct a path from it for
+		//	safety, even though the filesystem isn't actually interacted with by the
+		//	test code. This is a safeguard just in case something misbehaves.
+		let temp_dir = tempdir().unwrap();
+		let exe_path = temp_dir.path().join("mock_exe");
+		let lock     = MOCK_EXE.lock();
+		drop(lock.borrow_mut().replace(exe_path.clone()));
+		//	The code being tested will call FakeCommand::new(), which will return a
+		//	wrapper around a MockCommand that is already set up with the necessary
+		//	expectations.
+		Updater::restart();
 	}
 }
 

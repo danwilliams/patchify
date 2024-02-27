@@ -78,12 +78,12 @@
                 underway
           - [x] Wait until the critical actions counter has reached zero, then
                 trigger the restart
-      - [ ] Start the new version
+      - [x] Start the new version
           - [ ] Check that the new version has started correctly
-      - [ ] Exit the old version
-  - [ ] **Errors and logging**
-      - [ ] Log all attempts and their results
-      - [ ] Log any issues such as failed verification of signed data
+      - [x] Exit the old version
+  - [x] **Errors and logging**
+      - [x] Log all attempts and their results
+      - [x] Log any issues such as failed verification of signed data
   - [ ] **Tests**
   - [ ] **Documentation**
 
