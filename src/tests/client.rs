@@ -3,7 +3,7 @@
 //		Packages
 
 use super::*;
-use crate::mocks::{*, Subscriber};
+use crate::mocks::{MockSubscriber, Subscriber, reqwest::*};
 use assert_json_diff::assert_json_eq;
 use claims::{assert_err_eq, assert_ok, assert_none, assert_some};
 use ed25519_dalek::SigningKey;

@@ -50,7 +50,7 @@ use tracing::{debug, error, info};
 #[cfg(not(test))]
 use reqwest::{Client, Response};
 #[cfg(test)]
-use crate::mocks::{Client as HttpClient, MockClient as Client, MockResponse as Response, RequestBuilder};
+use crate::mocks::reqwest::{Client as HttpClient, MockClient as Client, MockResponse as Response, RequestBuilder};
 
 
 
