@@ -71,7 +71,7 @@
           - [x] Run a SHA256 hash and compare with the published hash
           - [x] Use the public key to verify the legitimacy of the provided
                 information
-      - [ ] Replace the installed application binary
+      - [x] Replace the installed application binary
           - [ ] This may need finesse under Windows
       - [x] Shut down the current application activity
           - [x] Update the central status to indicate that an upgrade is

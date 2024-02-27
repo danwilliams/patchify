@@ -4,6 +4,10 @@
 #[path = "mocks/reqwest.rs"]
 pub(crate) mod reqwest;
 
+#[cfg(test)]
+#[path = "mocks/std_env.rs"]
+pub(crate) mod std_env;
+
 
 
 //		Packages

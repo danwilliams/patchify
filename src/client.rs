@@ -33,12 +33,13 @@ use serde::{
 use sha2::{Sha256, Digest};
 use std::{
 	error::Error,
+	os::unix::fs::PermissionsExt,
 	path::PathBuf,
 	sync::Arc,
 };
 use tempfile::{tempdir, TempDir};
 use tokio::{
-	fs::File as AsyncFile,
+	fs::{File as AsyncFile, self},
 	io::AsyncWriteExt,
 	select,
 	spawn,
@@ -48,9 +49,15 @@ use tokio::{
 use tracing::{debug, error, info};
 
 #[cfg(not(test))]
-use reqwest::{Client, Response};
+use ::{
+	reqwest::{Client, Response},
+	std::env::current_exe,
+};
 #[cfg(test)]
-use crate::mocks::reqwest::{Client as HttpClient, MockClient as Client, MockResponse as Response, RequestBuilder};
+use crate::mocks::{
+	reqwest::{Client as HttpClient, MockClient as Client, MockResponse as Response, RequestBuilder},
+	std_env::mock_current_exe as current_exe,
+};
 
 
 
@@ -150,6 +157,26 @@ pub enum UpdaterError {
 	/// A problem was encountered when trying to create a temporary directory.
 	UnableToCreateTempDir(String),
 	
+	/// A problem was encountered when trying to get the metadata for the new
+	/// executable.
+	UnableToGetFileMetadata(PathBuf, String),
+	
+	/// A problem was encountered when trying to move the new executable into
+	/// the place of the current running application.
+	UnableToMoveNewExe(PathBuf, String),
+	
+	/// A problem was encountered when trying to obtain the path of the current
+	/// running application.
+	UnableToObtainCurrentExePath(String),
+	
+	/// A problem was encountered when trying to rename the current running
+	/// application.
+	UnableToRenameCurrentExe(PathBuf, String),
+	
+	/// A problem was encountered when trying to set the new executable's file
+	/// permissions.
+	UnableToSetFilePermissions(PathBuf, String),
+	
 	/// A problem was encountered when trying to write to the download file.
 	UnableToWriteToDownload(PathBuf, String),
 	
@@ -173,6 +200,11 @@ impl Display for UpdaterError {
 			Self::MissingSignature(ref url)                               => format!(  "HTTP response from {url} does not contain a signature header"),
 			Self::UnableToCreateDownload(ref path, ref msg)               => format!(r#"Unable to create download file "{path:?}": {msg}"#),
 			Self::UnableToCreateTempDir(ref msg)                          => format!(  "Unable to create temporary directory: {msg}"),
+			Self::UnableToGetFileMetadata(ref path, ref msg)              => format!(r#"Unable to get file metadata for the new executable "{path:?}": {msg}"#),
+			Self::UnableToMoveNewExe(ref path, ref msg)                   => format!(  "Unable to move the new executable {path:?}: {msg}"),
+			Self::UnableToObtainCurrentExePath(ref msg)                   => format!(  "Unable to obtain current executable path: {msg}"),
+			Self::UnableToRenameCurrentExe(ref path, ref msg)             => format!(  "Unable to rename the current executable {path:?}: {msg}"),
+			Self::UnableToSetFilePermissions(ref path, ref msg)           => format!(r#"Unable to set file permissions for the new executable "{path:?}": {msg}"#),
 			Self::UnableToWriteToDownload(ref path, ref msg)              => format!(r#"Unable to write to download file "{path:?}": {msg}"#),
 			Self::UnexpectedContentType(ref url, ref value, ref expected) => format!(r#"HTTP response from {url} had unexpected content type: "{value}", expected: "{expected}""#),
 		})
@@ -492,7 +524,7 @@ impl Updater {
 		//		Download update file											
 		self.set_status(Status::Downloading(version.clone(), 0));
 		info!("Downloading update {version}");
-		let (_download_dir, _update_path, file_hash) = match self.download_update(&version).await {
+		let (_download_dir, update_path, file_hash) = match self.download_update(&version).await {
 			Ok(data) => data,
 			Err(err) => {
 				error!("Error downloading update file: {err}");
@@ -510,7 +542,10 @@ impl Updater {
 		//		Install update													
 		self.set_status(Status::Installing(version.clone()));
 		info!("Installing update");
-		//	TODO: Install update
+		if let Err(err) = self.replace_executable(&update_path).await {
+			error!("Error installing update: {err}");
+			return;
+		}
 		//		Restart application												
 		if !self.is_safe_to_update() {
 			self.set_status(Status::PendingRestart(version.clone()));
@@ -661,6 +696,45 @@ impl Updater {
 			return Err(UpdaterError::InvalidPayload(url));
 		};
 		Ok(parsed)
+	}
+	
+	//		replace_executable													
+	/// Replaces the current executable with the updated one.
+	/// 
+	/// This function renames the currently-running executable with a `.old`
+	/// suffix, and moves the downloaded update into its place.
+	/// 
+	/// Note that at present it naively assumes that the backup filename doesn't
+	/// exist. It also does not attempt to rename the backup executable back to
+	/// the original name if moving the new executable fails. This behaviour
+	/// will be improved in future.
+	/// 
+	/// # Errors
+	/// 
+	/// * [`UpdaterError::UnableToGetFileMetadata`]
+	/// * [`UpdaterError::UnableToMoveNewExe`]
+	/// * [`UpdaterError::UnableToObtainCurrentExePath`]
+	/// * [`UpdaterError::UnableToRenameCurrentExe`]
+	/// * [`UpdaterError::UnableToSetFilePermissions`]
+	/// 
+	async fn replace_executable(&self, update_path: &PathBuf) -> Result<(), UpdaterError> {
+		let current_path = current_exe().map_err(|err| UpdaterError::UnableToObtainCurrentExePath(err.to_string()))?;
+		let backup_path  = current_path.with_extension("old");
+		fs::rename(&current_path, &backup_path).await.map_err(|err|
+			UpdaterError::UnableToRenameCurrentExe(current_path.clone(), err.to_string())
+		)?;
+		fs::rename(&update_path, &current_path).await.map_err(|err|
+			UpdaterError::UnableToMoveNewExe(update_path.clone(), err.to_string())
+		)?;
+		let mut permissions = fs::metadata(&current_path).await.map_err(|err|
+			UpdaterError::UnableToGetFileMetadata(current_path.clone(), err.to_string())
+		)?.permissions();
+		//	Add executable bits for all (owner, group, others)
+		permissions.set_mode(permissions.mode() | 0o111);
+		fs::set_permissions(&current_path, permissions).await.map_err(|err|
+			UpdaterError::UnableToSetFilePermissions(current_path.clone(), err.to_string())
+		)?;
+		Ok(())
 	}
 	
 	//																			

@@ -3,18 +3,30 @@
 //		Packages
 
 use super::*;
-use crate::mocks::{MockSubscriber, Subscriber, reqwest::*};
+use crate::mocks::{
+	MockSubscriber,
+	Subscriber,
+	reqwest::*,
+	std_env::*,
+};
 use assert_json_diff::assert_json_eq;
 use claims::{assert_err_eq, assert_ok, assert_none, assert_some};
 use ed25519_dalek::SigningKey;
 use futures_util::future::FutureExt;
+use parking_lot::ReentrantMutexGuard;
 use rand::rngs::OsRng;
 use reqwest::StatusCode;
 use serde_json::{Value as JsonValue, json};
+use std::{
+	cell::RefCell,
+	fs::{File, self},
+	io::Write,
+};
 use tokio::{
-	fs,
+	fs as async_fs,
 	time::sleep,
 };
+use tempfile::{TempDir, tempdir};
 
 
 
@@ -53,6 +65,25 @@ fn setup_safe_updater(
 		queue:       sender,
 		status:      RwLock::new(Status::Idle),
 	}
+}
+
+//		setup_files																
+fn setup_files<'lock>() -> (
+	ReentrantMutexGuard<'lock, RefCell<Option<PathBuf>>>,
+	TempDir,
+	PathBuf,
+	PathBuf,
+	PathBuf,
+) {
+	let temp_dir = tempdir().unwrap();
+	let exe_path = temp_dir.path().join("mock_exe");
+	let old_path = exe_path.with_extension("old");
+	let new_path = temp_dir.path().join("update");
+	let lock     = MOCK_EXE.lock();
+	drop(lock.borrow_mut().replace(exe_path.clone()));
+	File::create(&exe_path).unwrap().write_all(b"mock_exe contents").unwrap();
+	File::create(&new_path).unwrap().write_all(b"update contents").unwrap();
+	(lock, temp_dir, exe_path, old_path, new_path)
 }
 
 
@@ -467,7 +498,7 @@ mod updater_private {
 			mock_client,
 		);
 		let (_download_dir, update_path, file_hash) = updater.download_update(&version).await.unwrap();
-		let file_data                               = fs::read(update_path).await.unwrap();
+		let file_data                               = async_fs::read(update_path).await.unwrap();
 		assert_eq!(file_hash, Sha256::digest(payload).as_slice());
 		assert_eq!(file_hash, Sha256::digest(&file_data).as_slice());
 		assert_eq!(file_data, payload);
@@ -851,6 +882,77 @@ mod updater_private {
 		let err = updater.decode_and_verify::<LatestVersionResponse>(url.parse().unwrap(), mock_response).await;
 		assert_err_eq!(err.clone(), UpdaterError::UnexpectedContentType(url.parse().unwrap(), content_type.clone(), expected_content_type.clone()));
 		assert_eq!(err.unwrap_err().to_string(), format!(r#"HTTP response from {url} had unexpected content type: "{content_type}", expected: "{expected_content_type}""#));
+	}
+	
+	//		replace_executable													
+	#[tokio::test]
+	async fn replace_executable() {
+		//	The lock and temp_dir need to be maintained for the duration of the test
+		let (_lock, _temp_dir, exe_path, old_path, new_path) = setup_files();
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		assert_ok!(updater.replace_executable(&new_path).await);
+		assert!(exe_path.exists());
+		assert!(old_path.exists());
+		assert!(!new_path.exists());
+		assert_eq!(fs::metadata(&exe_path).unwrap().permissions().mode() & 0o111, 0o111);
+		assert_eq!(fs::read_to_string(old_path).unwrap(), "mock_exe contents");
+		assert_eq!(fs::read_to_string(exe_path).unwrap(), "update contents");
+	}
+	#[tokio::test]
+	async fn replace_executable__err_unable_to_get_file_metadata() {
+		//	No test for this at present, as it is difficult to simulate a failure.
+		//	It's also quite unlikely to occur.
+	}
+	#[tokio::test]
+	async fn replace_executable__err_unable_to_move_new_exe() {
+		//	The lock and temp_dir need to be maintained for the duration of the test
+		let (_lock, _temp_dir, exe_path, old_path, new_path) = setup_files();
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		fs::remove_file(&new_path).unwrap();
+		let err = updater.replace_executable(&new_path).await;
+		assert_err_eq!(err.clone(), UpdaterError::UnableToMoveNewExe(new_path.clone(), s!("No such file or directory (os error 2)")));
+		assert_eq!(err.unwrap_err().to_string(), format!(r#"Unable to move the new executable {new_path:?}: No such file or directory (os error 2)"#));
+		assert!(!exe_path.exists());
+		assert!(old_path.exists());
+		assert!(!new_path.exists());
+	}
+	#[tokio::test]
+	async fn replace_executable__err_unable_to_obtain_current_exe_path() {
+		//	No test for this at present, as it is difficult to simulate a failure.
+		//	It's also quite unlikely to occur.
+	}
+	#[tokio::test]
+	async fn replace_executable__err_unable_to_rename_current_exe() {
+		//	The lock and temp_dir need to be maintained for the duration of the test
+		let (_lock, _temp_dir, exe_path, old_path, new_path) = setup_files();
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		fs::remove_file(&exe_path).unwrap();
+		let err = updater.replace_executable(&new_path).await;
+		assert_err_eq!(err.clone(), UpdaterError::UnableToRenameCurrentExe(exe_path.clone(), s!("No such file or directory (os error 2)")));
+		assert_eq!(err.unwrap_err().to_string(), format!(r#"Unable to rename the current executable {exe_path:?}: No such file or directory (os error 2)"#));
+		assert!(!exe_path.exists());
+		assert!(!old_path.exists());
+		assert!(new_path.exists());
+	}
+	#[tokio::test]
+	async fn replace_executable__err_unable_to_set_file_permissions() {
+		//	No test for this at present, as it is difficult to simulate a failure.
+		//	It's also quite unlikely to occur.
 	}
 }
 
