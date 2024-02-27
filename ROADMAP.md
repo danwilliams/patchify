@@ -62,7 +62,7 @@
   - [ ] **Perform the update**
       - [x] Make update status information available
           - [x] Update central status enum at each stage
-          - [ ] Broadcast the status updates to interested subscribers
+          - [x] Broadcast the status updates to interested subscribers
       - [x] Download the new binary
           - [x] Save into a tmpdir — this will be auto-cleaned when the
                 application exits

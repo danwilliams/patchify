@@ -3,14 +3,18 @@
 //		Packages
 
 use super::*;
-use crate::mocks::*;
+use crate::mocks::{*, Subscriber};
 use assert_json_diff::assert_json_eq;
 use claims::{assert_err_eq, assert_ok, assert_none, assert_some};
 use ed25519_dalek::SigningKey;
+use futures_util::future::FutureExt;
 use rand::rngs::OsRng;
 use reqwest::StatusCode;
 use serde_json::{Value as JsonValue, json};
-use tokio::fs;
+use tokio::{
+	fs,
+	time::sleep,
+};
 
 
 
@@ -30,12 +34,14 @@ fn setup_safe_updater(
 	mock_client: MockClient,
 ) -> Updater {
 	let api         = api.parse().unwrap();
-	//	This is needed for creation, but won't be used in tests
+	//	These are needed for creation, but won't be used in tests
 	let (sender, _) = flume::unbounded();
+	let (tx, _rx)   = broadcast::channel(1);
 	//	The Updater instance needs to be created manually in order to bypass the
 	//	actions performed in the new() method
 	Updater {
 		actions:     AtomicUsize::new(0),
+		broadcast:   tx,
 		config:      Config {
 			version,
 			api,
@@ -275,6 +281,67 @@ mod updater_public {
 		assert_eq!(updater.status(), Status::Downloading(Version::new(1, 0, 0), 50));
 		updater.set_status(Status::Idle);
 		assert_eq!(updater.status(), Status::Idle);
+	}
+	
+	//		subscribe															
+	#[tokio::test]
+	async fn subscribe() {
+		let mut mock_subscriber = MockSubscriber::new();
+		let _ = mock_subscriber.expect_update()
+			.withf(|status| *status == Status::Checking)
+			.times(1)
+			.return_const(())
+		;
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		let (sender, receiver) = flume::unbounded();
+		let mut rx = updater.subscribe();
+		let thread = spawn(async move { loop { select! {
+			Ok(status) = rx.recv() => {
+				mock_subscriber.update(status);
+				break;
+			}
+			_ = receiver.recv_async() => {
+				break;
+			}
+		}}});
+		updater.set_status(Status::Checking);
+		sleep(Duration::from_millis(10)).await;
+		let _ignored = sender.send(());
+		thread.await.unwrap();
+	}
+	#[tokio::test]
+	async fn subscribe__no_status_change_events() {
+		let mut mock_subscriber = MockSubscriber::new();
+		let _ = mock_subscriber.expect_update()
+			.withf(|status| *status == Status::Checking)
+			.times(1)
+			.return_const(())
+		;
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
+		let (sender, receiver) = flume::unbounded();
+		let mut rx = updater.subscribe();
+		let thread = spawn(async move { loop { select! {
+			Ok(status) = rx.recv() => {
+				mock_subscriber.update(status);
+				break;
+			}
+			_ = receiver.recv_async() => {
+				break;
+			}
+		}}});
+		sleep(Duration::from_millis(10)).await;
+		sender.send(()).unwrap();
+		assert!(async { thread.await.unwrap() }.catch_unwind().await.is_err());
 	}
 }
 

@@ -42,9 +42,10 @@ use tokio::{
 	io::AsyncWriteExt,
 	select,
 	spawn,
+	sync::broadcast::{Receiver as Listener, Sender as Broadcaster, self},
 	time::{Duration, interval},
 };
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 #[cfg(not(test))]
 use reqwest::{Client, Response};
@@ -229,6 +230,11 @@ pub struct Updater {
 	/// action is in progress.
 	actions:     AtomicUsize,
 	
+	/// The status broadcast channel that status changes are added to. This is
+	/// the sender side only. Each interested party can subscribe to this
+	/// channel to receive status changes on a real-time basis.
+	broadcast:   Broadcaster<Status>,
+	
 	/// The configuration for the updater service.
 	config:      Config,
 	
@@ -265,21 +271,39 @@ impl Updater {
 	/// 
 	#[must_use]
 	pub fn new(config: Config) -> Arc<Self> {
+		//		Set up updater instance											
 		let http_client        = Client::new();
 		let (sender, receiver) = flume::unbounded();
+		let (tx, mut rx)       = broadcast::channel(1);
 		let updater            = Arc::new(Self {
 			actions:     AtomicUsize::new(0),
+			broadcast:   tx,
 			config,
 			http_client,
 			queue:       sender,
 			status:      RwLock::new(Status::Idle),
 		});
+		//		Listen for status change events									
+		//	It's useful to listen for status changes, so that they can be logged.
+		//	However, a persistent subscriber is also necessary to keep the broadcast
+		//	channel open, as it will be closed when the last subscriber is dropped.
+		#[cfg_attr(    feature = "reasons",  allow(clippy::pattern_type_mismatch, reason = "Cannot dereference here"))]
+		#[cfg_attr(not(feature = "reasons"), allow(clippy::pattern_type_mismatch))]
+		drop(spawn(async move { loop { select! {
+			//	Wait for data from the broadcast channel
+			Ok(status) = rx.recv() => {
+				debug!("Status changed: {status}");
+			}
+			else => break,
+		}}}));
+		//		Check for updates at startup									
 		if updater.config.check_on_startup {
 			let startup_updater = Arc::clone(&updater);
 			drop(spawn(async move {
 				startup_updater.check_for_updates().await;
 			}));
 		}
+		//		Check for updates at intervals									
 		if let Some(check_interval) = updater.config.check_interval {
 			let mut timer      = interval(check_interval);
 			let mut first_tick = true;
@@ -404,7 +428,25 @@ impl Updater {
 	/// 
 	pub fn set_status(&self, status: Status) {
 		let mut lock = self.status.write();                              //  //
-		*lock        = status;
+		*lock        = status.clone();
+		drop(lock);                                                      //  //
+		if let Err(err) = self.broadcast.send(status) {
+			error!("Failed to broadcast status change: {err}");
+		}
+	}
+	
+	//		subscribe															
+	/// Subscribes to the status change event broadcaster.
+	/// 
+	/// This function provides a receiver that is subscribed to the status
+	/// change event broadcaster, so that every time the status changes, it will
+	/// be notified.
+	/// 
+	/// At present this simply subscribes to all status change events, but it
+	/// may be enhanced in future to allow for filtering.
+	/// 
+	pub fn subscribe(&self) -> Listener<Status> {
+		self.broadcast.subscribe()
 	}
 	
 	//		Private methods														

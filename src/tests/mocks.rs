@@ -16,6 +16,7 @@
 
 //		Packages
 
+use crate::client::Status;
 use bytes::Bytes;
 use core::fmt::{Display, self};
 use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
@@ -60,6 +61,13 @@ pub(crate) trait Client {
 pub(crate) trait RequestBuilder {
 	//		send																
 	async fn send(&self) -> Result<MockResponse, MockError>;
+}
+
+//§		Subscriber																
+#[automock]
+pub(crate) trait Subscriber {
+	//		update																
+	fn update(&self, status: Status);
 }
 
 
