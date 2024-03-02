@@ -19,9 +19,11 @@ use rubedo::sugar::s;
 use semver::Version;
 use sha2::{Sha256, Digest};
 use std::{
+	collections::HashMap,
 	fs::File,
 	io::{Write, stdout},
 	net::{IpAddr, SocketAddr},
+	path::PathBuf,
 	sync::{Arc, Once, OnceLock},
 	time::Duration,
 };
@@ -93,24 +95,21 @@ pub fn initialize() {
 }
 
 //		create_server															
-pub async fn create_server() -> (SocketAddr, TempDir) {
-	let releases_dir = tempdir().unwrap();
+pub async fn create_server(
+	appname:  String,
+	address:  SocketAddr,
+	releases: PathBuf,
+	versions: HashMap<Version, [u8; 32]>,
+) -> SocketAddr {
+	println!("Verifying release hashes... this could take a while");
 	let patchify = PatchifyCore::new(PatchifyConfig {
-		appname:  s!("test"),
-		key:      KEY.get().unwrap().clone(),
-		releases: releases_dir.path().to_path_buf(),
-		versions: VERSION_DATA.iter()
-			.map(|(version, repetitions, data)| {
-				let path     = releases_dir.path().join(&format!("test-{}", version));
-				let mut file = File::create(&path).unwrap();
-				file.write_all(&data.repeat(*repetitions)).unwrap();
-				(version.clone(), Sha256::digest(data.repeat(*repetitions)).into())
-			})
-			.collect()
-		,
+		appname:          appname.clone(),
+		key:              KEY.get().unwrap().clone(),
+		releases,
 		stream_threshold: 1000,
 		stream_buffer:    256,
 		read_buffer:      128,
+		versions,
 	}).unwrap();
 	let app = Router::new()
 		.route("/api/ping",              get(get_ping))
@@ -141,10 +140,32 @@ pub async fn create_server() -> (SocketAddr, TempDir) {
 			})
 		)
 	;
-	let server   = Server::bind(&SocketAddr::from((IpAddr::from([127, 0, 0, 1]), 0))).serve(app.into_make_service());
-	let address  = server.local_addr();
+	let server  = Server::bind(&address).serve(app.into_make_service());
+	let address = server.local_addr();
 	spawn(server);
-	println!("Listening on {address}");
+	println!("Listening on: {address}");
+	println!("App name:     {appname}");
+	println!("Public key:   {}", hex::encode(KEY.get().unwrap().verifying_key()));
+	address
+}
+
+//		create_test_server														
+pub async fn create_test_server() -> (SocketAddr, TempDir) {
+	let releases_dir = tempdir().unwrap();
+	let address      = create_server(
+		s!("test"),
+		SocketAddr::from((IpAddr::from([127, 0, 0, 1]), 0)),
+		releases_dir.path().to_path_buf(),
+		VERSION_DATA.iter()
+			.map(|(version, repetitions, data)| {
+				let path     = releases_dir.path().join(&format!("test-{}", version));
+				let mut file = File::create(&path).unwrap();
+				file.write_all(&data.repeat(*repetitions)).unwrap();
+				(version.clone(), Sha256::digest(data.repeat(*repetitions)).into())
+			})
+			.collect()
+		,
+	).await;
 	(address, releases_dir)
 }
 

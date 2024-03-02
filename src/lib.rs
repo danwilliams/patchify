@@ -171,4 +171,10 @@ mod integration_test_package_usage {
 	use wiremock as _;
 }
 
+#[cfg(test)]
+mod examples_package_usage {
+	use figment as _;
+	use smart_default as _;
+}
+
 

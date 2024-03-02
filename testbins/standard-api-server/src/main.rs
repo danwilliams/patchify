@@ -1,13 +1,13 @@
 //		Modules
 
-#[path = "../../../tests/common/mod.rs"]
-mod common;
+#[path = "../../../tests/common/server.rs"]
+mod server;
 
 
 
 //		Packages
 
-use crate::common::server::{initialize, create_server};
+use server::{initialize, create_test_server};
 use tokio::signal;
 
 
@@ -18,8 +18,9 @@ use tokio::signal;
 #[tokio::main]
 async fn main() {
 	initialize();
-	let (_address, _temp_dir) = create_server().await;
+	let (_address, _temp_dir) = create_test_server().await;
 	signal::ctrl_c().await.unwrap();
+	println!("Shutting down");
 }
 
 

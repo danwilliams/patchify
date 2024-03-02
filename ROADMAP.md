@@ -36,7 +36,7 @@
           - [x] Exit with an error if there are any missing, or if any hashes
                 don’t match
   - [ ] **Tests**
-  - [ ] **Documentation**
+  - [x] **Documentation**
 
 ### Client
 
@@ -85,7 +85,7 @@
       - [x] Log all attempts and their results
       - [x] Log any issues such as failed verification of signed data
   - [ ] **Tests**
-  - [ ] **Documentation**
+  - [x] **Documentation**
 
 
 ## Version 0.2.0
