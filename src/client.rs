@@ -34,6 +34,7 @@ use sha2::{Sha256, Digest};
 use std::{
 	env::args,
 	error::Error,
+	io::Error as IoError,
 	os::unix::fs::PermissionsExt,
 	path::PathBuf,
 	sync::Arc,
@@ -47,7 +48,7 @@ use tokio::{
 	sync::broadcast::{Receiver as Listener, Sender as Broadcaster, self},
 	time::{Duration, interval},
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 #[cfg(not(test))]
 use ::{
@@ -726,12 +727,24 @@ impl Updater {
 	async fn replace_executable(&self, update_path: &PathBuf) -> Result<(), UpdaterError> {
 		let current_path = current_exe().map_err(|err| UpdaterError::UnableToObtainCurrentExePath(err.to_string()))?;
 		let backup_path  = current_path.with_extension("old");
+		let move_error   = |err: IoError| -> UpdaterError {
+			UpdaterError::UnableToMoveNewExe(update_path.clone(), err.to_string())
+		};
 		fs::rename(&current_path, &backup_path).await.map_err(|err|
 			UpdaterError::UnableToRenameCurrentExe(current_path.clone(), err.to_string())
 		)?;
-		fs::rename(&update_path, &current_path).await.map_err(|err|
-			UpdaterError::UnableToMoveNewExe(update_path.clone(), err.to_string())
-		)?;
+		if let Err(err) = fs::rename(&update_path, &current_path).await {
+			//	Check for cross-device move error and fall back to copy + delete. 18 is
+			//	a magic number for the error code for `EXDEV` (cross-device link), which
+			//	is not available in the standard library.
+			if err.raw_os_error() != Some(18_i32) {
+				return Err(move_error(err));
+			}
+			let _size = fs::copy(&update_path, &current_path).await.map_err(move_error)?;
+			if let Err(err2) = fs::remove_file(&update_path).await {
+				warn!("Failed to delete temporary update file {update_path:?}: {err2}");
+			}
+		}
 		let mut permissions = fs::metadata(&current_path).await.map_err(|err|
 			UpdaterError::UnableToGetFileMetadata(current_path.clone(), err.to_string())
 		)?.permissions();
