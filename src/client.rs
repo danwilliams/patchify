@@ -277,6 +277,12 @@ pub struct Updater {
 	/// The configuration for the updater service.
 	config:      Config,
 	
+	/// The path to the current running executable. This is used to replace the
+	/// executable with the new version when upgrading. It is checked at startup
+	/// and stored here as a reliable reference so that the updater can use it
+	/// later on.
+	exe_path:    PathBuf,
+	
 	/// The HTTP client instance that is used for communicating with the API
 	/// server.
 	http_client: Client,
@@ -308,8 +314,13 @@ impl Updater {
 	/// 
 	/// * `config` - The configuration for the updater service.
 	/// 
-	#[must_use]
-	pub fn new(config: Config) -> Arc<Self> {
+	/// # Errors
+	/// 
+	/// * [`UpdaterError::UnableToObtainCurrentExePath`]
+	/// 
+	#[cfg_attr(    feature = "reasons",  allow(clippy::result_large_err, reason = "Doesn't matter here"))]
+	#[cfg_attr(not(feature = "reasons"), allow(clippy::result_large_err))]
+	pub fn new(config: Config) -> Result<Arc<Self>, UpdaterError> {
 		//		Set up updater instance											
 		let http_client        = Client::new();
 		let (sender, receiver) = flume::unbounded();
@@ -318,6 +329,7 @@ impl Updater {
 			actions:     AtomicUsize::new(0),
 			broadcast:   tx,
 			config,
+			exe_path:    current_exe().map_err(|err| UpdaterError::UnableToObtainCurrentExePath(err.to_string()))?,
 			http_client,
 			queue:       sender,
 			status:      RwLock::new(Status::Idle),
@@ -364,7 +376,7 @@ impl Updater {
 				}
 			}}}));
 		}
-		updater
+		Ok(updater)
 	}
 	
 	//		Public methods														
@@ -425,7 +437,7 @@ impl Updater {
 			} else {
 				self.set_status(Status::Restarting(version));
 				info!("Restarting");
-				Self::restart();
+				self.restart();
 			}
 		}
 		Some(value)
@@ -561,7 +573,7 @@ impl Updater {
 		}
 		self.set_status(Status::Restarting(version.clone()));
 		info!("Restarting");
-		Self::restart();
+		self.restart();
 	}
 	
 	//		download_update														
@@ -720,12 +732,11 @@ impl Updater {
 	/// 
 	/// * [`UpdaterError::UnableToGetFileMetadata`]
 	/// * [`UpdaterError::UnableToMoveNewExe`]
-	/// * [`UpdaterError::UnableToObtainCurrentExePath`]
 	/// * [`UpdaterError::UnableToRenameCurrentExe`]
 	/// * [`UpdaterError::UnableToSetFilePermissions`]
 	/// 
 	async fn replace_executable(&self, update_path: &PathBuf) -> Result<(), UpdaterError> {
-		let current_path = current_exe().map_err(|err| UpdaterError::UnableToObtainCurrentExePath(err.to_string()))?;
+		let current_path = self.exe_path.clone();
 		let backup_path  = current_path.with_extension("old");
 		let move_error   = |err: IoError| -> UpdaterError {
 			UpdaterError::UnableToMoveNewExe(update_path.clone(), err.to_string())
@@ -774,17 +785,10 @@ impl Updater {
 	/// option. This behaviour will be considered carefully and improved in
 	/// future when it becomes clearer how to handle it.
 	/// 
-	fn restart() {
+	fn restart(&self) {
 		//	Skip the first argument (current executable name)
-		let args         = args().skip(1).collect::<Vec<_>>();
-		//	This should be infallible, as we've just obtained it in the same way in
-		//	the replace_executable() method, but rather than pass that value in here
-		//	we'll obtain it again in order to make things easier given that this can
-		//	be called from two places. This could be improved in future.
-		#[cfg_attr(    feature = "reasons",  allow(clippy::unwrap_used, reason = "Should be infallible"))]
-		#[cfg_attr(not(feature = "reasons"), allow(clippy::unwrap_used))]
-		let current_path = current_exe().unwrap();
-		let err          = Command::new(current_path)
+		let args = args().skip(1).collect::<Vec<_>>();
+		let err  = Command::new(self.exe_path.clone())
 			.args(args)
 			.stdin(Stdio::inherit())
 			.stdout(Stdio::inherit())

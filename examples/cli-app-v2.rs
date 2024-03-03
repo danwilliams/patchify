@@ -89,7 +89,7 @@ async fn main() {
 		).expect("Invalid public key")).expect("Invalid public key"),
 		check_on_startup: config.update_on_startup,
 		check_interval:   config.update_interval.map(|secs| Duration::from_secs(secs)),
-	});
+	}).unwrap();
 	info!("Application started");
 	info!("{} v{app_version}", config.appname);
 	signal::ctrl_c().await.unwrap();

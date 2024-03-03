@@ -102,7 +102,7 @@ mod actions {
 			key:              VerifyingKey::from_bytes(&[0; 32]).unwrap(),
 			check_on_startup: true,
 			check_interval:   None,
-		});
+		}).unwrap();
 		sleep(Duration::from_millis(50)).await;
 	}
 	#[tokio::test]
@@ -120,7 +120,7 @@ mod actions {
 			key:              VerifyingKey::from_bytes(&[0; 32]).unwrap(),
 			check_on_startup: false,
 			check_interval:   None,
-		});
+		}).unwrap();
 		sleep(Duration::from_millis(100)).await;
 	}
 	#[tokio::test]
@@ -138,7 +138,7 @@ mod actions {
 			key:              VerifyingKey::from_bytes(&[0; 32]).unwrap(),
 			check_on_startup: true,
 			check_interval:   Some(Duration::from_millis(50)),
-		});
+		}).unwrap();
 		sleep(Duration::from_millis(125)).await;
 	}
 	#[tokio::test]
@@ -156,7 +156,7 @@ mod actions {
 			key:              VerifyingKey::from_bytes(&[0; 32]).unwrap(),
 			check_on_startup: false,
 			check_interval:   Some(Duration::from_millis(50)),
-		});
+		}).unwrap();
 		sleep(Duration::from_millis(125)).await;
 	}
 }

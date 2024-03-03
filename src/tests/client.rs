@@ -61,6 +61,7 @@ fn setup_safe_updater(
 			check_on_startup: false,
 			check_interval:   None,
 		},
+		exe_path:    MOCK_EXE.lock().borrow().as_ref().map_or(PathBuf::new(), |p| p.clone()),
 		http_client: mock_client,
 		queue:       sender,
 		status:      RwLock::new(Status::Idle),
@@ -98,6 +99,9 @@ mod updater_construction {
 	//		new																	
 	#[tokio::test]
 	async fn new() {
+		//	The lock needs to be maintained for the duration of the test. We call
+		//	setup_files() to ensure that the mock executable path is set.
+		let (_lock, _temp_dir, _, _, _) = setup_files();
 		let order   = Ordering::SeqCst;
 		let updater = Updater::new(Config {
 			version:          Version::new(1, 0, 0),
@@ -105,14 +109,20 @@ mod updater_construction {
 			key:              VerifyingKey::from_bytes(&[0; 32]).unwrap(),
 			check_on_startup: false,
 			check_interval:   Some(Duration::from_secs(60 * 60)),
-		});
+		}).unwrap();
 		assert_eq!(updater.actions.load(order),     0);
 		assert_eq!(updater.config.version,          Version::new(1, 0, 0));
 		assert_eq!(updater.config.api,              "https://api.example.com".parse().unwrap());
 		assert_eq!(updater.config.key,              VerifyingKey::from_bytes(&[0; 32]).unwrap());
 		assert_eq!(updater.config.check_on_startup, false);
 		assert_eq!(updater.config.check_interval,   Some(Duration::from_secs(60 * 60)));
+		assert_eq!(updater.exe_path,                *MOCK_EXE.lock().borrow().as_ref().unwrap());
 		assert_eq!(*updater.status.read(),          Status::Idle);
+	}
+	#[tokio::test]
+	async fn new__err_unable_to_obtain_current_exe_path() {
+		//	No test for this at present, as it is difficult to simulate a failure.
+		//	It's also quite unlikely to occur.
 	}
 }
 
@@ -386,6 +396,9 @@ mod updater_private {
 	//		check_for_updates													
 	#[tokio::test]
 	async fn check_for_updates__update_check_already_underway() {
+		//	The lock needs to be maintained for the duration of the test. We call
+		//	setup_files() to ensure that the mock executable path is set.
+		let (_lock, _temp_dir, _, _, _) = setup_files();
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
@@ -930,11 +943,6 @@ mod updater_private {
 		assert!(!new_path.exists());
 	}
 	#[tokio::test]
-	async fn replace_executable__err_unable_to_obtain_current_exe_path() {
-		//	No test for this at present, as it is difficult to simulate a failure.
-		//	It's also quite unlikely to occur.
-	}
-	#[tokio::test]
 	async fn replace_executable__err_unable_to_rename_current_exe() {
 		//	The lock and temp_dir need to be maintained for the duration of the test
 		let (_lock, _temp_dir, exe_path, old_path, new_path) = setup_files();
@@ -961,17 +969,19 @@ mod updater_private {
 	//		restart																
 	#[tokio::test]
 	async fn restart() {
-		//	We don't actually use the tempdir, but we construct a path from it for
-		//	safety, even though the filesystem isn't actually interacted with by the
-		//	test code. This is a safeguard just in case something misbehaves.
-		let temp_dir = tempdir().unwrap();
-		let exe_path = temp_dir.path().join("mock_exe");
-		let lock     = MOCK_EXE.lock();
-		drop(lock.borrow_mut().replace(exe_path.clone()));
+		//	The lock needs to be maintained for the duration of the test. We call
+		//	setup_files() to ensure that the mock executable path is set.
+		let (_lock, _temp_dir, _, _, _) = setup_files();
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			MockClient::new(),
+		);
 		//	The code being tested will call FakeCommand::new(), which will return a
 		//	wrapper around a MockCommand that is already set up with the necessary
 		//	expectations.
-		Updater::restart();
+		updater.restart();
 	}
 }
 
