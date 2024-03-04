@@ -19,7 +19,7 @@
 use crate::common::utils::*;
 use bytes::Bytes;
 use core::fmt::{Display, self};
-use ed25519_dalek::{Signer, VerifyingKey};
+use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
 use futures_util::stream::{Stream, self};
 use mockall::{Sequence, automock, concretize};
 use reqwest::{
@@ -39,8 +39,10 @@ use std::{
 //		Enums
 
 //		ResponseSignature														
+#[allow(variant_size_differences)]
 pub(crate) enum ResponseSignature {
 	Generate,
+	GenerateUsing(SigningKey),
 	Omit,
 	Use(String),
 }
@@ -159,8 +161,20 @@ pub(crate) fn create_mock_response(
 	body:         Result<String, MockError>,
 	sign:         ResponseSignature,
 ) -> (MockResponse, VerifyingKey) {
-	let key           = generate_new_private_key();
-	let signature     = body.as_ref().map(|body| key.sign(body.as_ref()).to_string()).unwrap_or_else(|_| s!(""));
+	let key = match sign {
+		ResponseSignature::GenerateUsing(ref key) => key.clone(),
+		ResponseSignature::Generate |
+		ResponseSignature::Omit     |
+		ResponseSignature::Use(_)   => generate_new_private_key(),
+	};
+	let signature = match sign {
+		ResponseSignature::GenerateUsing(_) |
+		ResponseSignature::Generate           => {
+			body.as_ref().map(|body| key.sign(body.as_ref()).to_string()).unwrap_or_else(|_| s!(""))
+		},
+		ResponseSignature::Omit               => s!(""),
+		ResponseSignature::Use(ref other_sig) => other_sig.clone(),
+	};
 	let mock_response = MockResponse {
 		status,
 		headers: {
@@ -169,9 +183,10 @@ pub(crate) fn create_mock_response(
 				drop(headers.insert(CONTENT_TYPE, content_type.parse().unwrap()));
 			}
 			match &sign {
-				ResponseSignature::Generate       => drop(headers.insert("X-Signature", signature.parse().unwrap())),
-				ResponseSignature::Omit           => {},
-				ResponseSignature::Use(other_sig) => drop(headers.insert("X-Signature", other_sig.parse().unwrap())),
+				ResponseSignature::GenerateUsing(_) |
+				ResponseSignature::Generate         |
+				ResponseSignature::Use(_)           => drop(headers.insert("X-Signature", signature.parse().unwrap())),
+				ResponseSignature::Omit             => {},
 			}
 			headers
 		},

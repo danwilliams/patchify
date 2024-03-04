@@ -401,6 +401,53 @@ mod updater_private {
 	
 	//		check_for_updates													
 	#[tokio::test]
+	async fn check_for_updates__complete_successful_process() {
+		//	The lock and temp_dir need to be maintained for the duration of the test
+		let (_lock, _temp_dir, _, _, _)  = setup_files();
+		let version                      = Version::new(2, 3, 4);
+		let private_key                  = generate_new_private_key();
+		let url1                         = "https://api.example.com/api/latest";
+		let url2                         = "https://api.example.com/api/releases/2.3.4";
+		let url3                         = "https://api.example.com/api/hashes/2.3.4";
+		let payload                      = b"Test payload";
+		let (mock_response1, public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Ok(json!({
+				"version": s!("2.3.4"),
+			}).to_string()),
+			ResponseSignature::GenerateUsing(private_key.clone()),
+		);
+		let mock_response2 = create_mock_binary_response(
+			StatusCode::OK,
+			Some(s!("application/octet-stream")),
+			Ok(payload),
+		);
+		let (mock_response3, _public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Ok(json!({
+				"version": s!("2.3.4"),
+				"hash":    hex::encode(Sha256::digest(payload)),
+			}).to_string()),
+			ResponseSignature::GenerateUsing(private_key.clone()),
+		);
+		let mock_client = create_mock_client(vec![
+			(url1, Ok(mock_response1)),
+			(url2, Ok(mock_response2)),
+			(url3, Ok(mock_response3)),
+		]);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			public_key,
+			mock_client,
+		);
+		assert_eq!(updater.status(), Status::Idle);
+		updater.check_for_updates().await;
+		assert_eq!(updater.status(), Status::Restarting(version.clone()));
+	}
+	#[tokio::test]
 	async fn check_for_updates__update_check_already_underway() {
 		//	The lock needs to be maintained for the duration of the test. We call
 		//	setup_files() to ensure that the mock executable path is set.
@@ -488,15 +535,104 @@ mod updater_private {
 	}
 	#[tokio::test]
 	async fn check_for_updates__install_failed() {
-		//	TODO
+		let version                      = Version::new(2, 3, 4);
+		let private_key                  = generate_new_private_key();
+		let url1                         = "https://api.example.com/api/latest";
+		let url2                         = "https://api.example.com/api/releases/2.3.4";
+		let url3                         = "https://api.example.com/api/hashes/2.3.4";
+		let payload                      = b"Test payload";
+		let (mock_response1, public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Ok(json!({
+				"version": s!("2.3.4"),
+			}).to_string()),
+			ResponseSignature::GenerateUsing(private_key.clone()),
+		);
+		let mock_response2 = create_mock_binary_response(
+			StatusCode::OK,
+			Some(s!("application/octet-stream")),
+			Ok(payload),
+		);
+		let (mock_response3, _public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Ok(json!({
+				"version": s!("2.3.4"),
+				"hash":    hex::encode(Sha256::digest(payload)),
+			}).to_string()),
+			ResponseSignature::GenerateUsing(private_key.clone()),
+		);
+		let mock_client = create_mock_client(vec![
+			(url1, Ok(mock_response1)),
+			(url2, Ok(mock_response2)),
+			(url3, Ok(mock_response3)),
+		]);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			public_key,
+			mock_client,
+		);
+		assert_eq!(updater.status(), Status::Idle);
+		updater.check_for_updates().await;
+		//	We haven't set up the test files, so the installation will fail, which
+		//	is what we want here, so that we can check the status is correct
+		assert_eq!(updater.status(), Status::Installing(version.clone()));
 	}
 	#[tokio::test]
 	async fn check_for_updates__restart_blocked() {
-		//	TODO
+		//	The lock and temp_dir need to be maintained for the duration of the test
+		let (_lock, _temp_dir, _, _, _)  = setup_files();
+		let version                      = Version::new(2, 3, 4);
+		let private_key                  = generate_new_private_key();
+		let url1                         = "https://api.example.com/api/latest";
+		let url2                         = "https://api.example.com/api/releases/2.3.4";
+		let url3                         = "https://api.example.com/api/hashes/2.3.4";
+		let payload                      = b"Test payload";
+		let (mock_response1, public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Ok(json!({
+				"version": s!("2.3.4"),
+			}).to_string()),
+			ResponseSignature::GenerateUsing(private_key.clone()),
+		);
+		let mock_response2 = create_mock_binary_response(
+			StatusCode::OK,
+			Some(s!("application/octet-stream")),
+			Ok(payload),
+		);
+		let (mock_response3, _public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Ok(json!({
+				"version": s!("2.3.4"),
+				"hash":    hex::encode(Sha256::digest(payload)),
+			}).to_string()),
+			ResponseSignature::GenerateUsing(private_key.clone()),
+		);
+		let mock_client = create_mock_client(vec![
+			(url1, Ok(mock_response1)),
+			(url2, Ok(mock_response2)),
+			(url3, Ok(mock_response3)),
+		]);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			public_key,
+			mock_client,
+		);
+		assert_eq!(updater.status(),          Status::Idle);
+		assert_eq!(updater.register_action(), Some(1));
+		updater.check_for_updates().await;
+		//	We've registered a critical action, so the installation will be blocked,
+		//	which is what we want here, so that we can check the status is correct
+		assert_eq!(updater.status(),          Status::PendingRestart(version.clone()));
 	}
 	#[tokio::test]
 	async fn check_for_updates__restart_failed() {
-		//	TODO
+		//	No test for this at present, as it is difficult to simulate a failure
 	}
 	
 	//		download_update														
