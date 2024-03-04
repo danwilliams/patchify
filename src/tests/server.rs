@@ -3,9 +3,9 @@
 //		Packages
 
 use super::*;
+use crate::common::utils::*;
 use assert_json_diff::assert_json_eq;
 use claims::{assert_err_eq, assert_none};
-use rand::rngs::OsRng;
 use rubedo::{
 	http::{ResponseExt, UnpackedResponse},
 	sugar::s,
@@ -37,10 +37,9 @@ const VERSION_DATA: [(Version, usize, &[u8]); 5] = [
 
 //		setup_core																
 fn setup_core(releases_dir: &TempDir) -> Result<Core, ReleaseError> {
-	let mut csprng = OsRng{};
 	Core::new(Config {
 		appname:  s!("test"),
-		key:      SigningKey::generate(&mut csprng),
+		key:      generate_new_private_key(),
 		releases: releases_dir.path().to_path_buf(),
 		versions: VERSION_DATA.iter()
 			.map(|(version, repetitions, data)| (version.clone(), Sha256::digest(data.repeat(*repetitions)).into()))
@@ -107,10 +106,9 @@ mod core {
 	}
 	#[test]
 	fn latest_version__empty() {
-		let mut csprng = OsRng{};
-		let core       = Core::new(Config {
+		let core = Core::new(Config {
 			appname:  s!("test"),
-			key:      SigningKey::generate(&mut csprng),
+			key:      generate_new_private_key(),
 			releases: tempdir().unwrap().path().to_path_buf(),
 			versions: hash_map!{},
 			stream_threshold: 1000,
@@ -137,10 +135,9 @@ mod core {
 	}
 	#[test]
 	fn versions__empty() {
-		let mut csprng = OsRng{};
-		let core       = Core::new(Config {
+		let core = Core::new(Config {
 			appname:  s!("test"),
-			key:      SigningKey::generate(&mut csprng),
+			key:      generate_new_private_key(),
 			releases: tempdir().unwrap().path().to_path_buf(),
 			versions: hash_map!{},
 			stream_threshold: 1000,
@@ -338,8 +335,7 @@ mod axum {
 	}
 	#[test]
 	fn sign_response__specific_key() {
-		let mut csprng = OsRng{};
-		let other_key  = SigningKey::generate(&mut csprng);
+		let other_key  = generate_new_private_key();
 		let core       = Arc::new(setup_core(&setup_files()).unwrap());
 		let unpacked   = Axum::sign_response(&core.config.key, Response::builder()
 			.status(StatusCode::OK)

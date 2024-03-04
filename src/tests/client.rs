@@ -3,6 +3,7 @@
 //		Packages
 
 use super::*;
+use crate::common::utils::*;
 use crate::mocks::{
 	MockSubscriber,
 	Subscriber,
@@ -11,11 +12,9 @@ use crate::mocks::{
 };
 use assert_json_diff::assert_json_eq;
 use claims::{assert_err_eq, assert_ok, assert_none, assert_some};
-use ed25519_dalek::SigningKey;
 use futures_util::future::FutureExt;
 use once_cell::sync::Lazy;
 use parking_lot::ReentrantMutexGuard;
-use rand::rngs::OsRng;
 use reqwest::StatusCode;
 use serde_json::{Value as JsonValue, json};
 use std::{
@@ -782,8 +781,7 @@ mod updater_private {
 	#[tokio::test]
 	async fn decode_and_verify__err_failed_signature_verification() {
 		let url                          = "https://api.example.com/api/latest";
-		let mut csprng                   = OsRng{};
-		let other_public_key             = SigningKey::generate(&mut csprng).verifying_key();
+		let other_public_key             = generate_new_private_key().verifying_key();
 		let (mock_response, _public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),

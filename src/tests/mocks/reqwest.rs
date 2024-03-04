@@ -16,12 +16,12 @@
 
 //		Packages
 
+use crate::common::utils::*;
 use bytes::Bytes;
 use core::fmt::{Display, self};
-use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
+use ed25519_dalek::{Signer, VerifyingKey};
 use futures_util::stream::{Stream, self};
 use mockall::{Sequence, automock, concretize};
-use rand::rngs::OsRng;
 use reqwest::{
 	IntoUrl,
 	StatusCode,
@@ -159,8 +159,7 @@ pub(crate) fn create_mock_response(
 	body:         Result<String, MockError>,
 	sign:         ResponseSignature,
 ) -> (MockResponse, VerifyingKey) {
-	let mut csprng    = OsRng{};
-	let key           = SigningKey::generate(&mut csprng);
+	let key           = generate_new_private_key();
 	let signature     = body.as_ref().map(|body| key.sign(body.as_ref()).to_string()).unwrap_or_else(|_| s!(""));
 	let mock_response = MockResponse {
 		status,

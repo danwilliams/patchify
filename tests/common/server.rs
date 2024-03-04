@@ -1,5 +1,6 @@
 //		Packages
 
+use crate::common::utils::*;
 use axum::{
 	Extension,
 	Router,
@@ -14,7 +15,6 @@ use patchify::server::{
 	Config as PatchifyConfig,
 	Core as PatchifyCore,
 };
-use rand::rngs::OsRng;
 use rubedo::sugar::s;
 use semver::Version;
 use sha2::{Sha256, Digest};
@@ -89,8 +89,7 @@ pub fn initialize() {
 			)
 			.init()
 		;
-		let mut csprng = OsRng{};
-		KEY.set(SigningKey::generate(&mut csprng)).unwrap();
+		KEY.set(generate_new_private_key()).unwrap();
 	});
 }
 

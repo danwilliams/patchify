@@ -8,11 +8,9 @@ mod common;
 
 //		Packages
 
-use crate::common::{client::*, server::*};
+use crate::common::{client::*, server::*, utils::*};
 use assert_json_diff::assert_json_eq;
-use ed25519_dalek::SigningKey;
 use hex;
-use rand::rngs::OsRng;
 use reqwest::StatusCode;
 use rubedo::sugar::s;
 use semver::Version;
@@ -65,8 +63,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_latest__fail_signature_verification() {
 		initialize();
-		let mut csprng         = OsRng{};
-		let other_public_key   = SigningKey::generate(&mut csprng).verifying_key();
+		let other_public_key   = generate_new_private_key().verifying_key();
 		let (address, _releases_dir) = create_test_server().await;
 		let (status, content_type, verified, body) = request(
 			format!("http://{address}/api/latest"),

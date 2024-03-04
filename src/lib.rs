@@ -157,6 +157,10 @@ pub mod client;
 mod responses;
 
 #[cfg(test)]
+#[path = "tests/common.rs"]
+mod common;
+
+#[cfg(test)]
 #[path = "tests/mocks.rs"]
 mod mocks;
 

@@ -1,14 +1,14 @@
 //		Modules
 
 #[allow(unused)]
-#[path = "../tests/common/server.rs"]
-mod server;
+#[path = "../tests/common/mod.rs"]
+mod common;
 
 
 
 //		Packages
 
-use server::{initialize, create_server};
+use common::server::{initialize, create_server};
 use figment::{
 	Figment,
 	providers::{Env, Format, Serialized, Toml},

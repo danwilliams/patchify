@@ -1,13 +1,14 @@
 //		Modules
 
-#[path = "../../../tests/common/server.rs"]
-mod server;
+#[allow(unused)]
+#[path = "../../../tests/common/mod.rs"]
+mod common;
 
 
 
 //		Packages
 
-use server::{initialize, create_test_server};
+use common::server::{initialize, create_test_server};
 use tokio::signal;
 
 
