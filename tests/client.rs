@@ -11,6 +11,7 @@ mod common;
 
 use crate::common::client::request;
 use ed25519_dalek::VerifyingKey;
+use once_cell::sync::Lazy;
 use patchify::client::{Config, Updater};
 use reqwest::StatusCode;
 use semver::Version;
@@ -28,6 +29,12 @@ use wiremock::{
 	ResponseTemplate,
 	matchers::{method, path},
 };
+
+
+
+//		Constants
+
+const EMPTY_PUBLIC_KEY: Lazy<VerifyingKey> = Lazy::new(|| VerifyingKey::from_bytes(&[0; 32]).unwrap());
 
 
 
@@ -99,7 +106,7 @@ mod actions {
 		let _updater = Updater::new(Config {
 			version:          Version::new(1, 0, 0),
 			api:              format!("{}/api/", mock_server.uri()).parse().unwrap(),
-			key:              VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			key:              *EMPTY_PUBLIC_KEY,
 			check_on_startup: true,
 			check_interval:   None,
 		}).unwrap();
@@ -117,7 +124,7 @@ mod actions {
 		let _updater = Updater::new(Config {
 			version:          Version::new(1, 0, 0),
 			api:              format!("{}/api/", mock_server.uri()).parse().unwrap(),
-			key:              VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			key:              *EMPTY_PUBLIC_KEY,
 			check_on_startup: false,
 			check_interval:   None,
 		}).unwrap();
@@ -135,7 +142,7 @@ mod actions {
 		let _updater = Updater::new(Config {
 			version:          Version::new(1, 0, 0),
 			api:              format!("{}/api/", mock_server.uri()).parse().unwrap(),
-			key:              VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			key:              *EMPTY_PUBLIC_KEY,
 			check_on_startup: true,
 			check_interval:   Some(Duration::from_millis(50)),
 		}).unwrap();
@@ -153,7 +160,7 @@ mod actions {
 		let _updater = Updater::new(Config {
 			version:          Version::new(1, 0, 0),
 			api:              format!("{}/api/", mock_server.uri()).parse().unwrap(),
-			key:              VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			key:              *EMPTY_PUBLIC_KEY,
 			check_on_startup: false,
 			check_interval:   Some(Duration::from_millis(50)),
 		}).unwrap();

@@ -44,6 +44,7 @@ bytes = "1.5.0"
 claims = "0.7.1"
 figment = { version = "0.10.14", features = ["toml", "env"] }
 mockall = "0.12.1"
+once_cell = { version = "1.19.0", features = ["parking_lot"] }
 rand = "0.8.5"
 smart-default = "0.7.1"
 test-binary = "3.0.2"

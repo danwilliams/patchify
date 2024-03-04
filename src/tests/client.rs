@@ -13,6 +13,7 @@ use assert_json_diff::assert_json_eq;
 use claims::{assert_err_eq, assert_ok, assert_none, assert_some};
 use ed25519_dalek::SigningKey;
 use futures_util::future::FutureExt;
+use once_cell::sync::Lazy;
 use parking_lot::ReentrantMutexGuard;
 use rand::rngs::OsRng;
 use reqwest::StatusCode;
@@ -27,6 +28,12 @@ use tokio::{
 	time::sleep,
 };
 use tempfile::{TempDir, tempdir};
+
+
+
+//		Constants
+
+const EMPTY_PUBLIC_KEY: Lazy<VerifyingKey> = Lazy::new(|| VerifyingKey::from_bytes(&[0; 32]).unwrap());
 
 
 
@@ -106,14 +113,14 @@ mod updater_construction {
 		let updater = Updater::new(Config {
 			version:          Version::new(1, 0, 0),
 			api:              "https://api.example.com".parse().unwrap(),
-			key:              VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			key:              *EMPTY_PUBLIC_KEY,
 			check_on_startup: false,
 			check_interval:   Some(Duration::from_secs(60 * 60)),
 		}).unwrap();
 		assert_eq!(updater.actions.load(order),     0);
 		assert_eq!(updater.config.version,          Version::new(1, 0, 0));
 		assert_eq!(updater.config.api,              "https://api.example.com".parse().unwrap());
-		assert_eq!(updater.config.key,              VerifyingKey::from_bytes(&[0; 32]).unwrap());
+		assert_eq!(updater.config.key,              *EMPTY_PUBLIC_KEY);
 		assert_eq!(updater.config.check_on_startup, false);
 		assert_eq!(updater.config.check_interval,   Some(Duration::from_secs(60 * 60)));
 		assert_eq!(updater.exe_path,                *MOCK_EXE.lock().borrow().as_ref().unwrap());
@@ -137,7 +144,7 @@ mod updater_public {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		assert_eq!(updater.actions.load(order), 0);
@@ -151,7 +158,7 @@ mod updater_public {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		updater.set_status(Status::Checking);
@@ -173,7 +180,7 @@ mod updater_public {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		let _ = updater.actions.fetch_add(usize::MAX - 1, order);
@@ -191,7 +198,7 @@ mod updater_public {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		assert_eq!(updater.actions.load(order), 0);
@@ -210,7 +217,7 @@ mod updater_public {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		let _ = updater.actions.fetch_add(10, Ordering::SeqCst);
@@ -232,7 +239,7 @@ mod updater_public {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		let _ = updater.actions.fetch_add(3, Ordering::SeqCst);
@@ -253,7 +260,7 @@ mod updater_public {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		assert_eq!(updater.actions.load(order), 0);
@@ -272,7 +279,7 @@ mod updater_public {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		assert_eq!(updater.actions.load(order), 0);
@@ -297,7 +304,7 @@ mod updater_public {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		assert_eq!(*updater.status.read(), Status::Idle);
@@ -315,7 +322,7 @@ mod updater_public {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		assert_eq!(updater.status(), Status::Idle);
@@ -339,7 +346,7 @@ mod updater_public {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		let (sender, receiver) = flume::unbounded();
@@ -369,7 +376,7 @@ mod updater_public {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		let (sender, receiver) = flume::unbounded();
@@ -402,7 +409,7 @@ mod updater_private {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		updater.set_status(Status::Checking);
@@ -510,7 +517,7 @@ mod updater_private {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			mock_client,
 		);
 		let (_download_dir, update_path, file_hash) = updater.download_update(&version).await.unwrap();
@@ -549,7 +556,7 @@ mod updater_private {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			mock_client,
 		);
 		let err = updater.download_update(&version).await.unwrap_err();
@@ -704,7 +711,7 @@ mod updater_private {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			mock_client,
 		);
 		let err = updater.request("latest").await;
@@ -718,7 +725,7 @@ mod updater_private {
 		let updater  = setup_safe_updater(
 			Version::new(1, 0, 0),
 			base,
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		let err = updater.request(endpoint).await;
@@ -908,7 +915,7 @@ mod updater_private {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		assert_ok!(updater.replace_executable(&new_path).await);
@@ -931,7 +938,7 @@ mod updater_private {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		fs::remove_file(&new_path).unwrap();
@@ -949,7 +956,7 @@ mod updater_private {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		fs::remove_file(&exe_path).unwrap();
@@ -975,7 +982,7 @@ mod updater_private {
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
 			"https://api.example.com/api/",
-			VerifyingKey::from_bytes(&[0; 32]).unwrap(),
+			*EMPTY_PUBLIC_KEY,
 			MockClient::new(),
 		);
 		//	The code being tested will call FakeCommand::new(), which will return a
