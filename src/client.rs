@@ -10,6 +10,7 @@ mod tests;
 
 //		Packages
 
+use crate::responses::{LatestVersionResponse, VersionHashResponse};
 use core::{
 	fmt::{Display, self},
 	sync::atomic::{AtomicUsize, Ordering},
@@ -26,10 +27,7 @@ use reqwest::{
 };
 use rubedo::sugar::s;
 use semver::Version;
-use serde::{
-	Deserialize,
-	de::DeserializeOwned
-};
+use serde::de::DeserializeOwned;
 use sha2::{Sha256, Digest};
 use std::{
 	env::args,
@@ -814,27 +812,6 @@ impl Drop for Updater {
 		//	Send a message to the queue to stop the timer, ignoring any errors
 		let _ignored = self.queue.send(());
     }
-}
-
-//		LatestVersionResponse													
-/// The application version returned by the `latest` endpoint.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-struct LatestVersionResponse {
-	//		Private properties													
-	/// The latest version of the application.
-	version: Version,
-}
-
-//		VersionHashResponse														
-/// The application hash and version returned by the `hashes/:version` endpoint.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-struct VersionHashResponse {
-	//		Private properties													
-	/// The requested version of the application.
-	version: Version,
-	
-	/// The SHA256 hash of the application binary for this version.
-	hash:    String,
 }
 
 

@@ -154,6 +154,8 @@
 pub mod server;
 pub mod client;
 
+mod responses;
+
 #[cfg(test)]
 #[path = "tests/mocks.rs"]
 mod mocks;

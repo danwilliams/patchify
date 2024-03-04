@@ -10,6 +10,7 @@ use rubedo::{
 	http::{ResponseExt, UnpackedResponse},
 	sugar::s,
 };
+use serde_json::json;
 use sha2::{Sha256, Digest};
 use std::{
 	fs,

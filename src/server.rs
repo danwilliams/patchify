@@ -65,6 +65,7 @@ mod tests;
 
 //		Packages
 
+use crate::responses::{LatestVersionResponse, VersionHashResponse};
 use axum::{
 	Extension,
 	Json,
@@ -81,7 +82,6 @@ use rubedo::{
 	sugar::s,
 };
 use semver::Version;
-use serde_json::json;
 use sha2::{Sha256, Digest};
 use std::{
 	collections::HashMap,
@@ -403,7 +403,9 @@ impl Axum {
 	pub async fn get_latest_version(
 		Extension(core): Extension<Arc<Core>>,
 	) -> impl IntoResponse {
-		Self::sign_response(&core.config.key, Json(json!({ "version": core.latest_version() })).into_response())
+		Self::sign_response(&core.config.key, Json(LatestVersionResponse {
+			version: core.latest_version(),
+		}).into_response())
 	}
 	
 	//		get_hash_for_version												
@@ -433,10 +435,10 @@ impl Axum {
 		#[cfg_attr(    feature = "reasons",  allow(clippy::option_if_let_else, reason = "Match is more readable here"))]
 		#[cfg_attr(not(feature = "reasons"), allow(clippy::option_if_let_else))]
 		match core.versions().get(&version) {
-			Some(hash) => Ok(Self::sign_response(&core.config.key, Json(json!({
-				"version": version,
-				"hash":    hex::encode(hash),
-			})).into_response())),
+			Some(hash) => Ok(Self::sign_response(&core.config.key, Json(VersionHashResponse {
+				version,
+				hash:    hex::encode(hash),
+			}).into_response())),
 			None       => Err((StatusCode::NOT_FOUND, format!("Version {version} not found"))),
 		}
 	}
