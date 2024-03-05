@@ -64,14 +64,6 @@ pub static KEY:  OnceLock<SigningKey> = OnceLock::new();
 
 
 
-//		Structs
-
-//		AppState																
-pub struct AppState {
-}
-
-
-
 //		Functions
 
 //		initialize																
@@ -93,31 +85,12 @@ pub fn initialize() {
 	});
 }
 
-//		create_server															
-pub async fn create_server(
-	appname:  String,
-	address:  SocketAddr,
-	releases: PathBuf,
-	versions: HashMap<Version, [u8; 32]>,
+//		create_basic_server														
+pub async fn create_basic_server(
+	address: SocketAddr,
+	routes:  Router,
 ) -> SocketAddr {
-	println!("Verifying release hashes... this could take a while");
-	let patchify = PatchifyCore::new(PatchifyConfig {
-		appname:          appname.clone(),
-		key:              KEY.get().unwrap().clone(),
-		releases,
-		stream_threshold: 1000,
-		stream_buffer:    256,
-		read_buffer:      128,
-		versions,
-	}).unwrap();
-	let app = Router::new()
-		.route("/api/ping",              get(get_ping))
-		.route("/api/latest",            get(Patchify::get_latest_version))
-		.route("/api/hashes/:version",   get(Patchify::get_hash_for_version))
-		.route("/api/releases/:version", get(Patchify::get_release_file))
-		.with_state(Arc::new(AppState {
-		}))
-		.layer(Extension(Arc::new(patchify)))
+	let app = routes
 		.layer(TraceLayer::new_for_http()
 			.on_request(
 				DefaultOnRequest::new()
@@ -142,6 +115,31 @@ pub async fn create_server(
 	let server  = Server::bind(&address).serve(app.into_make_service());
 	let address = server.local_addr();
 	spawn(server);
+	address
+}
+
+//		create_patchify_api_server												
+pub async fn create_patchify_api_server(
+	appname:  String,
+	address:  SocketAddr,
+	routes:   Router,
+	releases: PathBuf,
+	versions: HashMap<Version, [u8; 32]>,
+) -> SocketAddr {
+	println!("Verifying release hashes... this could take a while");
+	let patchify = PatchifyCore::new(PatchifyConfig {
+		appname:          appname.clone(),
+		key:              KEY.get().unwrap().clone(),
+		releases,
+		stream_threshold: 1000,
+		stream_buffer:    256,
+		read_buffer:      128,
+		versions,
+	}).unwrap();
+	let address = create_basic_server(
+		address,
+		routes.layer(Extension(Arc::new(patchify))),
+	).await;
 	println!("Listening on: {address}");
 	println!("App name:     {appname}");
 	println!("Public key:   {}", hex::encode(KEY.get().unwrap().verifying_key()));
@@ -151,9 +149,10 @@ pub async fn create_server(
 //		create_test_server														
 pub async fn create_test_server() -> (SocketAddr, TempDir) {
 	let releases_dir = tempdir().unwrap();
-	let address      = create_server(
+	let address      = create_patchify_api_server(
 		s!("test"),
 		SocketAddr::from((IpAddr::from([127, 0, 0, 1]), 0)),
+		patchify_api_routes(),
 		releases_dir.path().to_path_buf(),
 		VERSION_DATA.iter()
 			.map(|(version, repetitions, data)| {
@@ -168,7 +167,16 @@ pub async fn create_test_server() -> (SocketAddr, TempDir) {
 	(address, releases_dir)
 }
 
+//		patchify_api_routes														
+pub fn patchify_api_routes() -> Router {
+	Router::new()
+		.route("/api/ping",              get(get_ping))
+		.route("/api/latest",            get(Patchify::get_latest_version))
+		.route("/api/hashes/:version",   get(Patchify::get_hash_for_version))
+		.route("/api/releases/:version", get(Patchify::get_release_file))
+}
+
 //		get_ping																
-async fn get_ping() {}
+pub async fn get_ping() {}
 
 

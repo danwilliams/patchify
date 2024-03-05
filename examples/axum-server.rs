@@ -8,7 +8,7 @@ mod common;
 
 //		Packages
 
-use common::server::{initialize, create_server};
+use common::server::{initialize, create_patchify_api_server, patchify_api_routes};
 use figment::{
 	Figment,
 	providers::{Env, Format, Serialized, Toml},
@@ -68,9 +68,10 @@ async fn main() {
 		.extract()
 		.expect("Error loading config")
 	;
-	let _address = create_server(
+	let _address = create_patchify_api_server(
 		config.appname,
 		SocketAddr::from((config.host, config.port)),
+		patchify_api_routes(),
 		PathBuf::from(config.releases),
 		config.versions.iter()
 			.map(|(key, hash)| {(

@@ -148,8 +148,8 @@ cargo run --example axum-server
 The following points are worth noting:
 
   - The full implementation logic can be found in `tests/common/server.rs`,
-    which is used by the integration tests. This provides the `initialize()` and
-    `create_server()` functions.
+    which is used by the integration tests. This provides the `initialize()`,
+    `create_patchify_api_server()`, and `patchify_api_routes()` functions.
   - The `tokio::signal::ctrl_c()` function is used to wait for a `Ctrl-C`
     signal, which will help the server to shut down cleanly. This is not
     strictly required, but is a common pattern, and good practice. It is used in
