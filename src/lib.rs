@@ -72,6 +72,7 @@
 	clippy::allow_attributes_without_reason,
 	clippy::dbg_macro,
 	clippy::exit,
+	clippy::infinite_loop,
 	clippy::missing_assert_message,
 	clippy::missing_docs_in_private_items,
 	clippy::mod_module_files,
@@ -81,7 +82,6 @@
 	clippy::string_to_string,
 	clippy::tests_outside_test_module,
 	clippy::unimplemented,
-	clippy::unwrap_in_result,
 )]
 #![deny(
 	clippy::clone_on_ref_ptr,
@@ -103,6 +103,7 @@
 	clippy::print_stdout,
 	clippy::rc_mutex,
 	clippy::try_err,
+	clippy::unwrap_in_result,
 	clippy::unwrap_used,
 	clippy::wildcard_enum_match_arm,
 )]
@@ -117,6 +118,7 @@
 	clippy::filetype_is_file,
 	clippy::if_then_some_else_none,
 	clippy::indexing_slicing,
+	clippy::iter_over_hash_type,
 	clippy::let_underscore_must_use,
 	clippy::let_underscore_untyped,
 	clippy::map_err_ignore,

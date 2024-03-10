@@ -267,6 +267,8 @@ impl Core {
 	/// * [`ReleaseError::Unreadable`]
 	/// 
 	pub fn new(config: Config) -> Result<Self, ReleaseError> {
+		#[cfg_attr(    feature = "reasons",  allow(clippy::iter_over_hash_type, reason = "Order doesn't matter here"))]
+		#[cfg_attr(not(feature = "reasons"), allow(clippy::iter_over_hash_type))]
 		for (version, hash) in &config.versions {
 			let path = config.releases.join(&format!("{}-{}", config.appname, version));
 			if !path.exists() || !path.is_file() {
