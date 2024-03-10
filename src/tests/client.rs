@@ -33,7 +33,7 @@ use tempfile::{TempDir, tempdir};
 
 //		Constants
 
-const EMPTY_PUBLIC_KEY: Lazy<VerifyingKey> = Lazy::new(|| VerifyingKey::from_bytes(&[0; 32]).unwrap());
+const EMPTY_PUBLIC_KEY: Lazy<VerifyingKey> = Lazy::new(|| VerifyingKey::from_bytes([0; 32]));
 
 
 

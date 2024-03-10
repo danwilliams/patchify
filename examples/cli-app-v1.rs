@@ -1,12 +1,11 @@
 //		Packages
 
-use ed25519_dalek::VerifyingKey;
 use figment::{
 	Figment,
 	providers::{Env, Format, Serialized, Toml},
 };
-use hex;
 use patchify::client::{Config as UpdaterConfig, Updater};
+use rubedo::crypto::VerifyingKey;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
@@ -44,8 +43,7 @@ pub struct Config {
 	
 	/// The public key of the updater API server. This is used to verify the
 	/// server response signature.
-	#[default = "0000000000000000000000000000000000000000000000000000000000000000"]
-	pub updater_api_key:    String,
+	pub updater_api_key:    VerifyingKey,
 	
 	/// Whether to check for updates on startup.
 	pub update_on_startup:  bool,
@@ -84,9 +82,7 @@ async fn main() {
 	let _updater = Updater::new(UpdaterConfig {
 		version:          app_version.clone(),
 		api:              config.updater_api_server.parse().expect("Invalid updater API server URL"),
-		key:              VerifyingKey::from_bytes(&<[u8; 32]>::try_from(
-			hex::decode(config.updater_api_key).expect("Invalid public key")
-		).expect("Invalid public key")).expect("Invalid public key"),
+		key:              config.updater_api_key,
 		check_on_startup: config.update_on_startup,
 		check_interval:   config.update_interval.map(|secs| Duration::from_secs(secs)),
 	}).unwrap();

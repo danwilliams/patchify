@@ -9,14 +9,14 @@ use axum::{
 	routing::get,
 };
 use bytes::Bytes;
-use ed25519_dalek::SigningKey;
 use patchify::server::{
 	Axum as Patchify,
 	Config as PatchifyConfig,
 	Core as PatchifyCore,
 };
 use rubedo::{
-	crypto::Sha256Hash,
+	crypto::{Sha256Hash, SigningKey},
+	std::ByteSized,
 	sugar::s,
 };
 use semver::Version;
@@ -145,7 +145,7 @@ pub async fn create_patchify_api_server(
 	).await;
 	println!("Listening on: {address}");
 	println!("App name:     {appname}");
-	println!("Public key:   {}", hex::encode(KEY.get().unwrap().verifying_key()));
+	println!("Public key:   {}", KEY.get().unwrap().verifying_key().to_hex());
 	address
 }
 

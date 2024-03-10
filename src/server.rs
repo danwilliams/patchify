@@ -75,9 +75,9 @@ use axum::{
 	response::{IntoResponse, Response},
 };
 use core::fmt::{Display, self};
-use ed25519_dalek::{Signer, SigningKey};
+use ed25519_dalek::Signer;
 use rubedo::{
-	crypto::Sha256Hash,
+	crypto::{Sha256Hash, SigningKey},
 	http::ResponseExt,
 	sugar::s,
 };

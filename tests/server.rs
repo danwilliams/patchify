@@ -12,7 +12,10 @@ use crate::common::{client::*, server::*, utils::*};
 use assert_json_diff::assert_json_eq;
 use hex;
 use reqwest::StatusCode;
-use rubedo::sugar::s;
+use rubedo::{
+	crypto::Sha256Hash,
+	sugar::s,
+};
 use semver::Version;
 use serde_json::{Value as JsonValue, json};
 use sha2::{Sha256, Digest};
@@ -245,14 +248,14 @@ mod scenarios {
 			format!("http://{address}/api/hashes/{latest}"),
 			public_key,
 		).await;
-		let json:    JsonValue = serde_json::from_slice(&body).unwrap();
-		let version: Version   = json["version"].as_str().unwrap().parse().unwrap();
-		let hash:    String    = json["hash"].as_str().unwrap().to_owned();
+		let json:    JsonValue  = serde_json::from_slice(&body).unwrap();
+		let version: Version    = json["version"].as_str().unwrap().parse().unwrap();
+		let hash:    Sha256Hash = json["hash"].as_str().unwrap().parse().unwrap();
 		assert_eq!(status,       StatusCode::OK);
 		assert_eq!(content_type, "application/json");
 		assert_eq!(verified,     Some(true));
 		assert_eq!(version,      latest);
-		assert_eq!(hash,         hex::encode(Sha256::digest(release_file)));
+		assert_eq!(hash,         Sha256Hash::from(Sha256::digest(release_file)));
 	}
 	
 	//		download_and_verify_release_with_hash_fail							

@@ -10,6 +10,7 @@ mod common;
 
 use common::server::{initialize, create_basic_server, get_ping};
 use axum::{Router, routing::get};
+use rubedo::crypto::VerifyingKey;
 use serde::Deserialize;
 use std::net::{IpAddr, SocketAddr};
 use tokio::signal;
@@ -22,7 +23,7 @@ use tokio::signal;
 #[derive(Deserialize)]
 pub struct Config {
 	pub api_port:   u16,
-	pub public_key: String,
+	pub public_key: VerifyingKey,
 }
 
 

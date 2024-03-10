@@ -19,7 +19,7 @@
 use crate::common::utils::*;
 use bytes::Bytes;
 use core::fmt::{Display, self};
-use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
+use ed25519_dalek::Signer;
 use futures_util::stream::{Stream, self};
 use mockall::{Sequence, automock, concretize};
 use reqwest::{
@@ -28,7 +28,10 @@ use reqwest::{
 	Url,
 	header::{HeaderMap, CONTENT_TYPE},
 };
-use rubedo::sugar::s;
+use rubedo::{
+	crypto::{SigningKey, VerifyingKey},
+	sugar::s,
+};
 use std::{
 	pin::Pin,
 	sync::Arc,

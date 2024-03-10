@@ -1,7 +1,7 @@
 //		Packages
 
-use ed25519_dalek::SigningKey;
 use rand::rngs::OsRng;
+use rubedo::crypto::SigningKey;
 
 
 

@@ -10,12 +10,12 @@ mod common;
 //		Packages
 
 use crate::common::{client::request, utils::*};
-use ed25519_dalek::{Signer, VerifyingKey};
+use ed25519_dalek::Signer;
 use once_cell::sync::Lazy;
 use patchify::client::{Config, Status, Updater};
 use reqwest::StatusCode;
 use rubedo::{
-	crypto::Sha256Hash,
+	crypto::{Sha256Hash, VerifyingKey},
 	std::ByteSized,
 };
 use semver::Version;
@@ -44,7 +44,7 @@ use wiremock::{
 
 //		Constants
 
-const EMPTY_PUBLIC_KEY: Lazy<VerifyingKey> = Lazy::new(|| VerifyingKey::from_bytes(&[0; 32]).unwrap());
+const EMPTY_PUBLIC_KEY: Lazy<VerifyingKey> = Lazy::new(|| VerifyingKey::from_bytes([0; 32]));
 
 
 
@@ -350,7 +350,7 @@ mod test_actions {
 			panic!("Server address not found in stdout from main API serverr");
 		}
 		let srv_address: SocketAddr = srv_address.unwrap().parse().unwrap();
-		let public_key = VerifyingKey::from_bytes(&<[u8; 32]>::try_from(hex::decode(public_key.unwrap()).unwrap()).unwrap()).unwrap();
+		let public_key = VerifyingKey::from_hex(&public_key.unwrap()).unwrap();
 		//		Ping main API server											
 		let (status, _, _, body) = request(
 			format!("http://{srv_address}/api/ping"),
@@ -361,7 +361,7 @@ mod test_actions {
 		//		Start app API server v1											
 		let mut subproc_app = Command::new(exec_path)
 			.env("API_PORT",   srv_address.port().to_string())
-			.env("PUBLIC_KEY", hex::encode(public_key))
+			.env("PUBLIC_KEY", public_key.to_hex())
 			.stdout(Stdio::piped())
 			.spawn().unwrap()
 		;

@@ -15,7 +15,7 @@ use core::{
 	fmt::{Display, self},
 	sync::atomic::{AtomicUsize, Ordering},
 };
-use ed25519_dalek::{Signature, VerifyingKey};
+use ed25519_dalek::Signature;
 use flume::{Sender, self};
 use futures_util::StreamExt;
 use hex;
@@ -26,7 +26,7 @@ use reqwest::{
 	header::CONTENT_TYPE,
 };
 use rubedo::{
-	crypto::Sha256Hash,
+	crypto::{Sha256Hash, VerifyingKey},
 	sugar::s,
 };
 use semver::Version;

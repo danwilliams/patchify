@@ -1,9 +1,10 @@
 //		Packages
 
 use bytes::Bytes;
-use ed25519_dalek::{Signature, VerifyingKey};
+use ed25519_dalek::Signature;
 use hex;
 use reqwest::{Client, StatusCode, header::CONTENT_TYPE};
+use rubedo::crypto::VerifyingKey;
 
 
 
