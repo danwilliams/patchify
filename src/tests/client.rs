@@ -16,6 +16,7 @@ use futures_util::future::FutureExt;
 use once_cell::sync::Lazy;
 use parking_lot::ReentrantMutexGuard;
 use reqwest::StatusCode;
+use rubedo::std::ByteSized;
 use serde_json::{Value as JsonValue, json};
 use std::{
 	cell::RefCell,
@@ -657,8 +658,8 @@ mod updater_private {
 		);
 		let (_download_dir, update_path, file_hash) = updater.download_update(&version).await.unwrap();
 		let file_data                               = async_fs::read(update_path).await.unwrap();
-		assert_eq!(file_hash, Sha256::digest(payload).as_slice());
-		assert_eq!(file_hash, Sha256::digest(&file_data).as_slice());
+		assert_eq!(file_hash, Sha256Hash::from(Sha256::digest(payload)));
+		assert_eq!(file_hash, Sha256Hash::from(Sha256::digest(&file_data)));
 		assert_eq!(file_data, payload);
 	}
 	#[tokio::test]
@@ -912,7 +913,7 @@ mod updater_private {
 		);
 		let response = updater.decode_and_verify::<VersionHashResponse>(url.parse().unwrap(), mock_response).await.unwrap();
 		assert_eq!(response.version, version);
-		assert_eq!(response.hash,    hash);
+		assert_eq!(response.hash,    Sha256Hash::from_hex(&hash).unwrap());
 	}
 	#[tokio::test]
 	async fn decode_and_verify__err_failed_signature_verification() {

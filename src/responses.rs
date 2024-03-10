@@ -10,6 +10,7 @@ mod tests;
 
 //		Packages
 
+use rubedo::crypto::Sha256Hash;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
@@ -39,7 +40,7 @@ pub(crate) struct VersionHashResponse {
 	pub(crate) version: Version,
 	
 	/// The SHA256 hash of the application binary for this version.
-	pub(crate) hash:    String,
+	pub(crate) hash:    Sha256Hash,
 }
 
 

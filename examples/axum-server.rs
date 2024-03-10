@@ -13,6 +13,7 @@ use figment::{
 	Figment,
 	providers::{Env, Format, Serialized, Toml},
 };
+use rubedo::crypto::Sha256Hash;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
@@ -51,7 +52,7 @@ pub struct Config {
 	
 	/// A list of version numbers and the SHA256 hashes of their release files.
 	#[default(HashMap::new())]
-	pub versions: HashMap<Version, String>,
+	pub versions: HashMap<Version, Sha256Hash>,
 }
 
 
@@ -73,13 +74,7 @@ async fn main() {
 		SocketAddr::from((config.host, config.port)),
 		patchify_api_routes(),
 		PathBuf::from(config.releases),
-		config.versions.iter()
-			.map(|(key, hash)| {(
-				key.clone(),
-				<[u8; 32]>::try_from(hex::decode(hash).expect("Invalid SHA256 hash")).expect("Invalid SHA256 hash"),
-			)})
-			.collect()
-		,
+		config.versions,
 	).await;
 	signal::ctrl_c().await.unwrap();
 	println!("Shutting down");

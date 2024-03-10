@@ -76,8 +76,8 @@ use axum::{
 };
 use core::fmt::{Display, self};
 use ed25519_dalek::{Signer, SigningKey};
-use hex;
 use rubedo::{
+	crypto::Sha256Hash,
 	http::ResponseExt,
 	sugar::s,
 };
@@ -218,7 +218,7 @@ pub struct Config {
 	/// version numbers against the SHA256 hashes of the binary release files.
 	/// The hashes are required so that the server can verify the integrity of
 	/// the files before serving them to clients.
-	pub versions:         HashMap<Version, [u8; 32]>
+	pub versions:         HashMap<Version, Sha256Hash>
 }
 
 //		Core																	
@@ -290,7 +290,7 @@ impl Core {
 				#[cfg_attr(not(feature = "reasons"), allow(clippy::indexing_slicing))]
 				hasher.update(&buffer[..count]);
 			}
-			let file_hash: [u8; 32] = hasher.finalize().into();
+			let file_hash: Sha256Hash = hasher.finalize().into();
 			if file_hash != *hash {
 				return Err(ReleaseError::Invalid(version.clone(), path));
 			}
@@ -320,7 +320,7 @@ impl Core {
 	/// specified in the configuration.
 	/// 
 	#[must_use]
-	pub fn versions(&self) -> HashMap<Version, [u8; 32]> {
+	pub fn versions(&self) -> HashMap<Version, Sha256Hash> {
 		self.config.versions.clone()
 	}
 	
@@ -439,7 +439,7 @@ impl Axum {
 		match core.versions().get(&version) {
 			Some(hash) => Ok(Self::sign_response(&core.config.key, Json(VersionHashResponse {
 				version,
-				hash:    hex::encode(hash),
+				hash:    *hash,
 			}).into_response())),
 			None       => Err((StatusCode::NOT_FOUND, format!("Version {version} not found"))),
 		}

@@ -9,6 +9,7 @@ use claims::{assert_err_eq, assert_none};
 use rubedo::{
 	http::{ResponseExt, UnpackedResponse},
 	sugar::s,
+	std::ByteSized,
 };
 use serde_json::json;
 use sha2::{Sha256, Digest};
@@ -123,7 +124,7 @@ mod core {
 	fn versions() {
 		let core = setup_core(&setup_files()).unwrap();
 		assert_eq!(core.versions().iter()
-			.map(|(version, hash)| (version.clone(), hex::encode(hash)))
+			.map(|(version, hash)| (version.clone(), hash.to_hex()))
 			.collect::<HashMap<Version, String>>()
 		, hash_map!{
 			Version::new(1, 0, 0): s!("2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"),

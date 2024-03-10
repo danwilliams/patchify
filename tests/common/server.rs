@@ -15,7 +15,10 @@ use patchify::server::{
 	Config as PatchifyConfig,
 	Core as PatchifyCore,
 };
-use rubedo::sugar::s;
+use rubedo::{
+	crypto::Sha256Hash,
+	sugar::s,
+};
 use semver::Version;
 use sha2::{Sha256, Digest};
 use std::{
@@ -124,7 +127,7 @@ pub async fn create_patchify_api_server(
 	address:  SocketAddr,
 	routes:   Router,
 	releases: PathBuf,
-	versions: HashMap<Version, [u8; 32]>,
+	versions: HashMap<Version, Sha256Hash>,
 ) -> SocketAddr {
 	println!("Verifying release hashes... this could take a while");
 	let patchify = PatchifyCore::new(PatchifyConfig {

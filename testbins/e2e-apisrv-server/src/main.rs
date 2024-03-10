@@ -13,6 +13,10 @@ use figment::{
 	Figment,
 	providers::Env,
 };
+use rubedo::{
+	crypto::Sha256Hash,
+	std::ByteSized,
+};
 use semver::Version;
 use serde::Deserialize;
 use std::{
@@ -49,8 +53,8 @@ async fn main() {
 		patchify_api_routes(),
 		PathBuf::from(config.releases),
 		hash_map!{
-			Version::new(1, 0, 0): <[u8; 32]>::try_from(hex::decode(config.version1).unwrap()).unwrap(),
-			Version::new(2, 0, 0): <[u8; 32]>::try_from(hex::decode(config.version2).unwrap()).unwrap(),
+			Version::new(1, 0, 0): Sha256Hash::from_hex(&config.version1).unwrap(),
+			Version::new(2, 0, 0): Sha256Hash::from_hex(&config.version2).unwrap(),
 		},
 	).await;
 	signal::ctrl_c().await.unwrap();

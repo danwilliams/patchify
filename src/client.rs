@@ -25,7 +25,10 @@ use reqwest::{
 	Url,
 	header::CONTENT_TYPE,
 };
-use rubedo::sugar::s;
+use rubedo::{
+	crypto::Sha256Hash,
+	sugar::s,
+};
 use semver::Version;
 use serde::de::DeserializeOwned;
 use sha2::{Sha256, Digest};
@@ -551,7 +554,7 @@ impl Updater {
 		info!("Update file downloaded");
 		//		Verify update file												
 		info!("Verifying update {version}");
-		if let Err(err) = self.verify_update(&version, &file_hash).await {
+		if let Err(err) = self.verify_update(&version, file_hash).await {
 			error!("Error verifying update file: {err}");
 			return;
 		}
@@ -588,7 +591,7 @@ impl Updater {
 	/// * [`UpdaterError::UnableToWriteToDownload`]
 	/// * [`UpdaterError::UnexpectedContentType`]
 	/// 
-	async fn download_update(&self, version: &Version) -> Result<(TempDir, PathBuf, [u8; 32]), UpdaterError> {
+	async fn download_update(&self, version: &Version) -> Result<(TempDir, PathBuf, Sha256Hash), UpdaterError> {
 		//		Prepare file to download to										
 		let download_dir = tempdir().map_err(|err| UpdaterError::UnableToCreateTempDir(err.to_string()))?;
 		let update_path  = download_dir.path().join(format!("update-{version}"));
@@ -611,7 +614,7 @@ impl Updater {
 			)?;
 			hasher.update(&chunk);
 		}
-		let file_hash: [u8; 32] = hasher.finalize().into();
+		let file_hash: Sha256Hash = hasher.finalize().into();
 		Ok((download_dir, update_path, file_hash))
 	}
 	
@@ -626,14 +629,14 @@ impl Updater {
 	/// * [`UpdaterError::InvalidPayload`]
 	/// * [`UpdaterError::FailedHashVerification`]
 	/// 
-	async fn verify_update(&self, version: &Version, hash: &[u8; 32]) -> Result<(), UpdaterError> {
+	async fn verify_update(&self, version: &Version, hash: Sha256Hash) -> Result<(), UpdaterError> {
 		let (url, response) = self.request(&format!("hashes/{version}")).await?;
 		match self.decode_and_verify::<VersionHashResponse>(url.clone(), response).await {
 			Ok(json) => {
 				if json.version != *version {
 					return Err(UpdaterError::InvalidPayload(url));
 				}
-				if json.hash != hex::encode(hash) {
+				if json.hash != hash {
 					return Err(UpdaterError::FailedHashVerification(version.clone()));
 				}
 				Ok(())
