@@ -16,7 +16,7 @@ use patchify::client::{Config, Status, Updater};
 use reqwest::StatusCode;
 use rubedo::{
 	crypto::{Sha256Hash, VerifyingKey},
-	std::ByteSized,
+	std::{ByteSized, FileExt},
 };
 use semver::Version;
 use serde_json::json;
@@ -24,7 +24,7 @@ use sha2::{Sha256, Digest};
 use std::{
 	env::current_exe,
 	fs::{File, self},
-	io::{BufReader, BufRead, Read},
+	io::{BufReader, BufRead},
 	net::SocketAddr,
 	process::{Command, Stdio},
 	time::Duration,
@@ -45,25 +45,6 @@ use wiremock::{
 //		Constants
 
 const EMPTY_PUBLIC_KEY: Lazy<VerifyingKey> = Lazy::new(|| VerifyingKey::from_bytes([0; 32]));
-
-
-
-//		Common
-
-//		calculate_file_hash														
-fn calculate_file_hash(path: PathBuf) -> Sha256Hash {
-	let mut file   = File::open(path).unwrap();
-	let mut hasher = Sha256::new();
-	let mut buffer = vec![0; 0x0010_0000].into_boxed_slice();  //  1M read buffer on the heap
-	loop {
-		let count = file.read(&mut buffer).unwrap();
-		if count == 0 {
-			break;
-		}
-		hasher.update(&buffer[..count]);
-	}
-	hasher.finalize().into()
-}
 
 
 
@@ -322,8 +303,8 @@ mod test_actions {
 		let exec_path = exec_dir.path().join("testapp");
 		fs::copy(&testapp_v1_path, &exec_path).unwrap();
 		//		Obtain SHA256 hashes of the release files						
-		let testapp_v1_hash = calculate_file_hash(testapp_v1_path.into()).to_hex();
-		let testapp_v2_hash = calculate_file_hash(testapp_v2_path.into()).to_hex();
+		let testapp_v1_hash = File::hash::<Sha256Hash>(&PathBuf::from(testapp_v1_path)).unwrap().to_hex();
+		let testapp_v2_hash = File::hash::<Sha256Hash>(&PathBuf::from(testapp_v2_path)).unwrap().to_hex();
 		//		Start main API server											
 		let mut subproc_srv = Command::new(testserver_path)
 			.env("RELEASES", releases_dir.path())

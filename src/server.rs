@@ -79,15 +79,15 @@ use ed25519_dalek::Signer;
 use rubedo::{
 	crypto::{Sha256Hash, SigningKey},
 	http::ResponseExt,
+	std::FileExt,
 	sugar::s,
 };
 use semver::Version;
-use sha2::{Sha256, Digest};
 use std::{
 	collections::HashMap,
 	error::Error,
 	fs::File,
-	io::{ErrorKind as IoErrorKind, Read},
+	io::ErrorKind as IoErrorKind,
 	path::PathBuf,
 	sync::Arc,
 };
@@ -274,23 +274,9 @@ impl Core {
 			if !path.exists() || !path.is_file() {
 				return Err(ReleaseError::Missing(version.clone(), path));
 			}
-			let mut file   = File::open(&path).map_err(|err|
+			let file_hash: Sha256Hash = File::hash(&path).map_err(|err|
 				ReleaseError::Unreadable(version.clone(), err.kind(), err.to_string())
 			)?;
-			let mut hasher = Sha256::new();
-			let mut buffer = vec![0; 0x0010_0000].into_boxed_slice();  //  1M read buffer on the heap
-			loop {
-				let count = file.read(&mut buffer).map_err(|err|
-					ReleaseError::Unreadable(version.clone(), err.kind(), err.to_string())
-				)?;
-				if count == 0 {
-					break;
-				}
-				#[cfg_attr(    feature = "reasons",  allow(clippy::indexing_slicing, reason = "Infallible"))]
-				#[cfg_attr(not(feature = "reasons"), allow(clippy::indexing_slicing))]
-				hasher.update(&buffer[..count]);
-			}
-			let file_hash: Sha256Hash = hasher.finalize().into();
 			if file_hash != *hash {
 				return Err(ReleaseError::Invalid(version.clone(), path));
 			}
