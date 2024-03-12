@@ -411,26 +411,31 @@ mod updater_private {
 		let url2                         = "https://api.example.com/api/releases/2.3.4";
 		let url3                         = "https://api.example.com/api/hashes/2.3.4";
 		let payload                      = b"Test payload";
+		let json1                        = json!({
+			"version": s!("2.3.4"),
+		}).to_string();
+		let json2                        = json!({
+			"version": s!("2.3.4"),
+			"hash":    hex::encode(Sha256::digest(payload)),
+		}).to_string();
 		let (mock_response1, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("2.3.4"),
-			}).to_string()),
+			Some(json1.len()),
+			Ok(json1),
 			ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_response2 = create_mock_binary_response(
 			StatusCode::OK,
 			Some(s!("application/octet-stream")),
+			Some(payload.len()),
 			Ok(payload),
 		);
 		let (mock_response3, _public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("2.3.4"),
-				"hash":    hex::encode(Sha256::digest(payload)),
-			}).to_string()),
+			Some(json2.len()),
+			Ok(json2),
 			ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_client = create_mock_client(vec![
@@ -478,12 +483,14 @@ mod updater_private {
 	#[tokio::test]
 	async fn check_for_updates__no_update_available() {
 		let url                         = "https://api.example.com/api/latest";
+		let json                        = json!({
+			"version": s!("1.0.0"),
+		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("1.0.0"),
-			}).to_string()),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Generate,
 		);
 		let mock_client = create_mock_client(vec![
@@ -505,18 +512,21 @@ mod updater_private {
 		let url1                         = "https://api.example.com/api/latest";
 		let url2                         = "https://api.example.com/api/releases/2.3.4";
 		let payload                      = b"Test payload";
+		let json                         = json!({
+			"version": s!("2.3.4"),
+		}).to_string();
 		let (mock_response1, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("2.3.4"),
-			}).to_string()),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Generate,
 		);
 		let mock_response2 = create_mock_binary_response(
 			StatusCode::OK,
 			//	Intentionally-incorrect content type, to make the process fail
 			Some(s!("text/plain")),
+			Some(payload.len()),
 			Ok(payload),
 		);
 		let mock_client = create_mock_client(vec![
@@ -542,26 +552,31 @@ mod updater_private {
 		let url2                         = "https://api.example.com/api/releases/2.3.4";
 		let url3                         = "https://api.example.com/api/hashes/2.3.4";
 		let payload                      = b"Test payload";
+		let json1                        = json!({
+			"version": s!("2.3.4"),
+		}).to_string();
+		let json2                        = json!({
+			"version": s!("2.3.4"),
+			"hash":    hex::encode(Sha256::digest(payload)),
+		}).to_string();
 		let (mock_response1, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("2.3.4"),
-			}).to_string()),
+			Some(json1.len()),
+			Ok(json1),
 			ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_response2 = create_mock_binary_response(
 			StatusCode::OK,
 			Some(s!("application/octet-stream")),
+			Some(payload.len()),
 			Ok(payload),
 		);
 		let (mock_response3, _public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("2.3.4"),
-				"hash":    hex::encode(Sha256::digest(payload)),
-			}).to_string()),
+			Some(json2.len()),
+			Ok(json2),
 			ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_client = create_mock_client(vec![
@@ -591,26 +606,31 @@ mod updater_private {
 		let url2                         = "https://api.example.com/api/releases/2.3.4";
 		let url3                         = "https://api.example.com/api/hashes/2.3.4";
 		let payload                      = b"Test payload";
+		let json1                        = json!({
+			"version": s!("2.3.4"),
+		}).to_string();
+		let json2                        = json!({
+			"version": s!("2.3.4"),
+			"hash":    hex::encode(Sha256::digest(payload)),
+		}).to_string();
 		let (mock_response1, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("2.3.4"),
-			}).to_string()),
+			Some(json1.len()),
+			Ok(json1),
 			ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_response2 = create_mock_binary_response(
 			StatusCode::OK,
 			Some(s!("application/octet-stream")),
+			Some(payload.len()),
 			Ok(payload),
 		);
 		let (mock_response3, _public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("2.3.4"),
-				"hash":    hex::encode(Sha256::digest(payload)),
-			}).to_string()),
+			Some(json2.len()),
+			Ok(json2),
 			ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_client = create_mock_client(vec![
@@ -645,6 +665,7 @@ mod updater_private {
 		let mock_response = create_mock_binary_response(
 			StatusCode::OK,
 			Some(s!("application/octet-stream")),
+			Some(payload.len()),
 			Ok(payload),
 		);
 		let mock_client = create_mock_client(vec![
@@ -684,6 +705,7 @@ mod updater_private {
 		let mock_response         = create_mock_binary_response(
 			StatusCode::OK,
 			Some(content_type.clone()),
+			Some(payload.len()),
 			Ok(payload),
 		);
 		let mock_client = create_mock_client(vec![
@@ -699,6 +721,60 @@ mod updater_private {
 		assert_eq!(err,             UpdaterError::UnexpectedContentType(url.parse().unwrap(), content_type.clone(), expected_content_type.clone()));
 		assert_eq!(err.to_string(), format!(r#"HTTP response from {url} had unexpected content type: "{content_type}", expected: "{expected_content_type}""#));
 	}
+	#[tokio::test]
+	async fn download_update__err_missing_data() {
+		let version               = Version::new(2, 3, 4);
+		let url                   = "https://api.example.com/api/releases/2.3.4";
+		let content_type          = s!("application/octet-stream");
+		let payload               = b"Test payload";
+		let content_len           = payload.len();
+		let expected_content_len  = payload.len() + 1;
+		let mock_response         = create_mock_binary_response(
+			StatusCode::OK,
+			Some(content_type),
+			Some(expected_content_len),
+			Ok(payload),
+		);
+		let mock_client = create_mock_client(vec![
+			(url, Ok(mock_response)),
+		]);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			*EMPTY_PUBLIC_KEY,
+			mock_client,
+		);
+		let err = updater.download_update(&version).await.unwrap_err();
+		assert_eq!(err,             UpdaterError::MissingData(url.parse().unwrap(), content_len, expected_content_len));
+		assert_eq!(err.to_string(), format!("HTTP response body from {url} is shorter than expected: {content_len} < {expected_content_len}"));
+	}
+	#[tokio::test]
+	async fn download_update__err_too_much_data() {
+		let version               = Version::new(2, 3, 4);
+		let url                   = "https://api.example.com/api/releases/2.3.4";
+		let content_type          = s!("application/octet-stream");
+		let payload               = b"Test payload";
+		let content_len           = payload.len();
+		let expected_content_len  = payload.len() - 1;
+		let mock_response         = create_mock_binary_response(
+			StatusCode::OK,
+			Some(content_type),
+			Some(expected_content_len),
+			Ok(payload),
+		);
+		let mock_client = create_mock_client(vec![
+			(url, Ok(mock_response)),
+		]);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			*EMPTY_PUBLIC_KEY,
+			mock_client,
+		);
+		let err = updater.download_update(&version).await.unwrap_err();
+		assert_eq!(err,             UpdaterError::TooMuchData(url.parse().unwrap(), content_len, expected_content_len));
+		assert_eq!(err.to_string(), format!("HTTP response body from {url} is longer than expected: {content_len} > {expected_content_len}"));
+	}
 	
 	//		verify_update														
 	#[tokio::test]
@@ -706,13 +782,15 @@ mod updater_private {
 		let version                     = Version::new(2, 3, 4);
 		let hash                        = Sha256::digest(b"Test payload");
 		let url                         = "https://api.example.com/api/hashes/2.3.4";
+		let json                        = json!({
+			"version": version.to_string(),
+			"hash":    hex::encode(hash),
+		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": version.to_string(),
-				"hash":    hex::encode(hash),
-			}).to_string()),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Generate,
 		);
 		let mock_client = create_mock_client(vec![
@@ -732,13 +810,15 @@ mod updater_private {
 		let hash                        = Sha256::digest(b"Test payload");
 		let other_hash                  = Sha256::digest(b"Some other payload");
 		let url                         = "https://api.example.com/api/hashes/2.3.4";
+		let json                        = json!({
+			"version": version.to_string(),
+			"hash":    hex::encode(other_hash),
+		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": version.to_string(),
-				"hash":    hex::encode(other_hash),
-			}).to_string()),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Generate,
 		);
 		let mock_client = create_mock_client(vec![
@@ -760,13 +840,15 @@ mod updater_private {
 		let other_version               = Version::new(3, 3, 3);
 		let hash                        = Sha256::digest(b"Test payload");
 		let url                         = "https://api.example.com/api/hashes/2.3.4";
+		let json                        = json!({
+			"version": other_version.to_string(),
+			"hash":    hex::encode(hash),
+		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": other_version.to_string(),
-				"hash":    hex::encode(hash),
-			}).to_string()),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Generate,
 		);
 		let mock_client = create_mock_client(vec![
@@ -787,12 +869,14 @@ mod updater_private {
 	#[tokio::test]
 	async fn request() {
 		let url                         = "https://api.example.com/api/latest";
+		let json                        = json!({
+			"version": s!("3.3.3"),
+		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("3.3.3"),
-			}).to_string()),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Generate,
 		);
 		let mock_client = create_mock_client(vec![
@@ -816,12 +900,14 @@ mod updater_private {
 	async fn request__err_http_error() {
 		let url                         = "https://api.example.com/api/latest";
 		let status                      = StatusCode::IM_A_TEAPOT;
+		let json                        = json!({
+			"version": s!("3.3.3"),
+		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
 			status,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("3.3.3"),
-			}).to_string()),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Generate,
 		);
 		let mock_client = create_mock_client(vec![
@@ -874,12 +960,14 @@ mod updater_private {
 	async fn decode_and_verify__latest_version() {
 		let version                     = Version::new(3, 3, 3);
 		let url                         = "https://api.example.com/api/latest";
+		let json                        = json!({
+			"version": version.to_string(),
+		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": version.to_string(),
-			}).to_string()),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Generate,
 		);
 		let updater = setup_safe_updater(
@@ -896,13 +984,15 @@ mod updater_private {
 		let version                     = Version::new(3, 3, 3);
 		let hash                        = hex::encode(Sha256::digest(b"Test payload"));
 		let url                         = "https://api.example.com/api/hashes/3.3.3";
+		let json                        = json!({
+			"version": version.to_string(),
+			"hash":    hash,
+		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": version.to_string(),
-				"hash":    hash,
-			}).to_string()),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Generate,
 		);
 		let updater = setup_safe_updater(
@@ -919,12 +1009,14 @@ mod updater_private {
 	async fn decode_and_verify__err_failed_signature_verification() {
 		let url                          = "https://api.example.com/api/latest";
 		let other_public_key             = generate_new_private_key().verifying_key();
+		let json                         = json!({
+			"version": s!("3.3.3"),
+		}).to_string();
 		let (mock_response, _public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("3.3.3"),
-			}).to_string()),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Generate,
 		);
 		let updater = setup_safe_updater(
@@ -943,6 +1035,7 @@ mod updater_private {
 		let (mock_response, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
+			None,
 			Err(MockError {}),
 			ResponseSignature::Use(s!("dummy signature")),
 		);
@@ -959,10 +1052,12 @@ mod updater_private {
 	#[tokio::test]
 	async fn decode_and_verify__err_invalid_payload() {
 		let url                         = "https://api.example.com/api/latest";
+		let json                        = s!("{invalid json: 3.3.3");
 		let (mock_response, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(s!("{invalid json: 3.3.3")),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Generate,
 		);
 		let updater = setup_safe_updater(
@@ -979,12 +1074,14 @@ mod updater_private {
 	async fn decode_and_verify__err_invalid_signature() {
 		let url                         = "https://api.example.com/api/latest";
 		let signature                   = s!("invalid signature");
+		let json                        = json!({
+			"version": s!("3.3.3"),
+		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("3.3.3"),
-			}).to_string()),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Use(signature.clone()),
 		);
 		let updater = setup_safe_updater(
@@ -1000,12 +1097,14 @@ mod updater_private {
 	#[tokio::test]
 	async fn decode_and_verify__err_missing_signature() {
 		let url                         = "https://api.example.com/api/latest";
+		let json                        = json!({
+			"version": s!("3.3.3"),
+		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(s!("application/json")),
-			Ok(json!({
-				"version": s!("3.3.3"),
-			}).to_string()),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Omit,
 		);
 		let updater = setup_safe_updater(
@@ -1023,12 +1122,14 @@ mod updater_private {
 		let url                         = "https://api.example.com/api/latest";
 		let content_type                = s!("text/plain");
 		let expected_content_type       = s!("application/json");
+		let json                        = json!({
+			"version": s!("3.3.3"),
+		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
 			StatusCode::OK,
 			Some(content_type.clone()),
-			Ok(json!({
-				"version": s!("3.3.3"),
-			}).to_string()),
+			Some(json.len()),
+			Ok(json),
 			ResponseSignature::Generate,
 		);
 		let updater = setup_safe_updater(
@@ -1040,6 +1141,58 @@ mod updater_private {
 		let err = updater.decode_and_verify::<LatestVersionResponse>(url.parse().unwrap(), mock_response).await;
 		assert_err_eq!(err.clone(), UpdaterError::UnexpectedContentType(url.parse().unwrap(), content_type.clone(), expected_content_type.clone()));
 		assert_eq!(err.unwrap_err().to_string(), format!(r#"HTTP response from {url} had unexpected content type: "{content_type}", expected: "{expected_content_type}""#));
+	}
+	#[tokio::test]
+	async fn decode_and_verify__err_missing_data() {
+		let url                         = "https://api.example.com/api/latest";
+		let content_type                = s!("application/json");
+		let json                        = json!({
+			"version": s!("3.3.3"),
+		}).to_string();
+		let content_len                 = json.len();
+		let expected_content_len        = json.len() + 1;
+		let (mock_response, public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(content_type),
+			Some(expected_content_len),
+			Ok(json.clone()),
+			ResponseSignature::Generate,
+		);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			public_key,
+			MockClient::new(),
+		);
+		let err = updater.decode_and_verify::<LatestVersionResponse>(url.parse().unwrap(), mock_response).await;
+		assert_err_eq!(err.clone(), UpdaterError::MissingData(url.parse().unwrap(), content_len, expected_content_len));
+		assert_eq!(err.unwrap_err().to_string(), format!("HTTP response body from {url} is shorter than expected: {content_len} < {expected_content_len}"));
+	}
+	#[tokio::test]
+	async fn decode_and_verify__err_too_much_data() {
+		let url                         = "https://api.example.com/api/latest";
+		let content_type                = s!("application/json");
+		let json                        = json!({
+			"version": s!("3.3.3"),
+		}).to_string();
+		let content_len                 = json.len();
+		let expected_content_len        = json.len() - 1;
+		let (mock_response, public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(content_type),
+			Some(expected_content_len),
+			Ok(json.clone()),
+			ResponseSignature::Generate,
+		);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			public_key,
+			MockClient::new(),
+		);
+		let err = updater.decode_and_verify::<LatestVersionResponse>(url.parse().unwrap(), mock_response).await;
+		assert_err_eq!(err.clone(), UpdaterError::TooMuchData(url.parse().unwrap(), content_len, expected_content_len));
+		assert_eq!(err.unwrap_err().to_string(), format!("HTTP response body from {url} is longer than expected: {content_len} > {expected_content_len}"));
 	}
 	
 	//		replace_executable													

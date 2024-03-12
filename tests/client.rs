@@ -63,7 +63,7 @@ mod foundation {
 			.respond_with(ResponseTemplate::new(200))
 			.mount(&mock_server).await
 		;
-		let (status, _, _, body) = request(
+		let (status, _, _, _, body) = request(
 			format!("{}/api/ping", mock_server.uri()),
 			None,
 		).await;
@@ -88,8 +88,8 @@ mod foundation {
 		if address.is_empty() {
 			panic!("Server address not found in stdout");
 		}
-		let address: SocketAddr  = address.parse().unwrap();
-		let (status, _, _, body) = request(
+		let address: SocketAddr     = address.parse().unwrap();
+		let (status, _, _, _, body) = request(
 			format!("http://{address}/api/ping"),
 			None,
 		).await;
@@ -333,7 +333,7 @@ mod test_actions {
 		let srv_address: SocketAddr = srv_address.unwrap().parse().unwrap();
 		let public_key = VerifyingKey::from_hex(&public_key.unwrap()).unwrap();
 		//		Ping main API server											
-		let (status, _, _, body) = request(
+		let (status, _, _, _, body) = request(
 			format!("http://{srv_address}/api/ping"),
 			None,
 		).await;
@@ -364,14 +364,14 @@ mod test_actions {
 		}
 		let app_address: SocketAddr = app_address.parse().unwrap();
 		//		Ping app API server												
-		let (status, _, _, body) = request(
+		let (status, _, _, _, body) = request(
 			format!("http://{app_address}/api/ping"),
 			None,
 		).await;
 		assert_eq!(status,        StatusCode::OK);
 		assert_eq!(body.as_ref(), b"");
 		//		Check app API server version									
-		let (status, _, _, body) = request(
+		let (status, _, _, _, body) = request(
 			format!("http://{app_address}/api/version"),
 			None,
 		).await;
@@ -406,7 +406,7 @@ mod test_actions {
 		}
 		let app_address: SocketAddr = app_address.parse().unwrap();
 		//		Check app API server version again once restarted				
-		let (status, _, _, body) = request(
+		let (status, _, _, _, body) = request(
 			format!("http://{app_address}/api/version"),
 			None,
 		).await;

@@ -23,7 +23,7 @@ use parking_lot::RwLock;
 use reqwest::{
 	StatusCode,
 	Url,
-	header::CONTENT_TYPE,
+	header::{CONTENT_LENGTH, CONTENT_TYPE},
 };
 use rubedo::{
 	crypto::{Sha256Hash, VerifyingKey},
@@ -155,9 +155,15 @@ pub enum UpdaterError {
 	/// when adding a particular endpoint to it, as the outcome is invalid.
 	InvalidUrl(Url, String),
 	
+	/// The HTTP response body from the API server is shorter than expected.
+	MissingData(Url, usize, usize),
+	
 	/// The HTTP response from the API server does not contain a signature
 	/// header.
 	MissingSignature(Url),
+	
+	/// The HTTP response body from the API server is longer than expected.
+	TooMuchData(Url, usize, usize),
 	
 	/// A problem was encountered when trying to create a file for the download.
 	UnableToCreateDownload(PathBuf, String),
@@ -205,7 +211,9 @@ impl Display for UpdaterError {
 			Self::InvalidPayload(ref url)                                 => format!(  "Invalid payload received from {url}"),
 			Self::InvalidSignature(ref url, ref signature)                => format!(r#"Invalid signature header "{signature}" received from {url}"#),
 			Self::InvalidUrl(ref base, ref endpoint)                      => format!(  "Invalid URL specified: {base} plus {endpoint}"),
+			Self::MissingData(ref url, ref received, ref expected)        => format!(  "HTTP response body from {url} is shorter than expected: {received} < {expected}"),
 			Self::MissingSignature(ref url)                               => format!(  "HTTP response from {url} does not contain a signature header"),
+			Self::TooMuchData(ref url, ref received, ref expected)        => format!(  "HTTP response body from {url} is longer than expected: {received} > {expected}"),
 			Self::UnableToCreateDownload(ref path, ref msg)               => format!(r#"Unable to create download file "{path:?}": {msg}"#),
 			Self::UnableToCreateTempDir(ref msg)                          => format!(  "Unable to create temporary directory: {msg}"),
 			Self::UnableToGetFileMetadata(ref path, ref msg)              => format!(r#"Unable to get file metadata for the new executable "{path:?}": {msg}"#),
@@ -586,6 +594,8 @@ impl Updater {
 	/// 
 	/// # Errors
 	/// 
+	/// * [`UpdaterError::MissingData`]
+	/// * [`UpdaterError::TooMuchData`]
 	/// * [`UpdaterError::UnableToCreateDownload`]
 	/// * [`UpdaterError::UnableToCreateTempDir`]
 	/// * [`UpdaterError::UnableToWriteToDownload`]
@@ -598,24 +608,44 @@ impl Updater {
 		let mut file     = AsyncFile::create(&update_path).await.map_err(|err|
 			UpdaterError::UnableToCreateDownload(update_path.clone(), err.to_string())
 		)?;
-		//		Check content type												
+		//		Get headers														
 		let (url, response) = self.request(&format!("releases/{version}")).await?;
-		let content_type = response.headers().get(CONTENT_TYPE).and_then(|h| h.to_str().ok()).unwrap_or("").to_owned();
+		let content_type = response.headers()
+			.get(CONTENT_TYPE)
+			.and_then(|h| h.to_str().ok())
+			.unwrap_or("")
+			.to_owned()
+		;
+		let content_length = response.headers()
+			.get(CONTENT_LENGTH)
+			.and_then(|h| h.to_str().ok())
+			.and_then(|s| s.parse::<usize>().ok())
+			.unwrap_or(0)
+		;
+		//		Check content type												
 		if content_type != "application/octet-stream" {
 			return Err(UpdaterError::UnexpectedContentType(url, content_type, s!("application/octet-stream")));
 		}
 		//		Download release to file										
 		let mut response_stream = response.bytes_stream();
 		let mut hasher          = Sha256::new();
+		let mut body_len        = 0_usize;
 		//	Download in chunks, and update the SHA256 hash along the way
 		while let Some(Ok(chunk)) = response_stream.next().await {
 			file.write_all(&chunk).await.map_err(|err|
 				UpdaterError::UnableToWriteToDownload(update_path.clone(), err.to_string())
 			)?;
 			hasher.update(&chunk);
+			body_len = body_len.saturating_add(chunk.len());
 		}
-		let file_hash: Sha256Hash = hasher.finalize().into();
-		Ok((download_dir, update_path, file_hash))
+		//		Check content length											
+		if body_len < content_length {
+			return Err(UpdaterError::MissingData(url, body_len, content_length));
+		}
+		if body_len > content_length {
+			return Err(UpdaterError::TooMuchData(url, body_len, content_length));
+		}
+		Ok((download_dir, update_path, hasher.finalize().into()))
 	}
 	
 	//		verify_update														
@@ -685,23 +715,49 @@ impl Updater {
 	/// * [`UpdaterError::InvalidBody`]
 	/// * [`UpdaterError::InvalidPayload`]
 	/// * [`UpdaterError::InvalidSignature`]
+	/// * [`UpdaterError::MissingData`]
 	/// * [`UpdaterError::MissingSignature`]
+	/// * [`UpdaterError::TooMuchData`]
 	/// * [`UpdaterError::UnexpectedContentType`]
 	/// 
 	async fn decode_and_verify<T: DeserializeOwned>(&self, url: Url, response: Response) -> Result<T, UpdaterError> {
-		//		Check content type												
-		let content_type = response.headers().get(CONTENT_TYPE).and_then(|h| h.to_str().ok()).unwrap_or("").to_owned();
-		if content_type != "application/json" {
-			return Err(UpdaterError::UnexpectedContentType(url, content_type, s!("application/json")));
-		}
-		//		Verify payload against signature								
-		let signature = response.headers().get("x-signature").and_then(|h| h.to_str().ok()).unwrap_or("").to_owned();
-		if signature.is_empty() {
-			return Err(UpdaterError::MissingSignature(url));
-		}
+		//		Get headers														
+		let content_type = response.headers()
+			.get(CONTENT_TYPE)
+			.and_then(|h| h.to_str().ok())
+			.unwrap_or("")
+			.to_owned()
+		;
+		let content_length = response.headers()
+			.get(CONTENT_LENGTH)
+			.and_then(|h| h.to_str().ok())
+			.and_then(|s| s.parse::<usize>().ok())
+			.unwrap_or(0)
+		;
+		let signature = response.headers()
+			.get("x-signature")
+			.and_then(|h| h.to_str().ok())
+			.unwrap_or("")
+			.to_owned()
+		;
+		//		Get body														
 		let Ok(body) = response.text().await else {
 			return Err(UpdaterError::InvalidBody(url))
 		};
+		//		Check headers													
+		if content_type != "application/json" {
+			return Err(UpdaterError::UnexpectedContentType(url, content_type, s!("application/json")));
+		}
+		if body.len() < content_length {
+			return Err(UpdaterError::MissingData(url, body.len(), content_length));
+		}
+		if body.len() > content_length {
+			return Err(UpdaterError::TooMuchData(url, body.len(), content_length));
+		}
+		if signature.is_empty() {
+			return Err(UpdaterError::MissingSignature(url));
+		}
+		//		Verify payload against signature								
 		let Ok(signature_bytes) = hex::decode(&signature) else {
 			return Err(UpdaterError::InvalidSignature(url, signature))
 		};

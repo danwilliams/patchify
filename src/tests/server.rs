@@ -237,7 +237,8 @@ mod axum {
 		let crafted  = UnpackedResponse::new(
 			StatusCode::OK,
 			vec![
-				(s!("content-type"), s!("application/octet-stream")),
+				(s!("content-length"), s!("9")),
+				(s!("content-type"),   s!("application/octet-stream")),
 			],
 			b"foobarbaz",
 		);
@@ -254,7 +255,8 @@ mod axum {
 		let crafted  = UnpackedResponse::new(
 			StatusCode::OK,
 			vec![
-				(s!("content-type"), s!("application/octet-stream")),
+				(s!("content-length"), s!("5120")),
+				(s!("content-type"),   s!("application/octet-stream")),
 			],
 			vec![0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF].repeat(512),
 		);
@@ -271,7 +273,8 @@ mod axum {
 		let crafted  = UnpackedResponse::new(
 			StatusCode::OK,
 			vec![
-				(s!("content-type"), s!("application/octet-stream")),
+				(s!("content-length"), s!("5242880")),
+				(s!("content-type"),   s!("application/octet-stream")),
 			],
 			vec![0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF].repeat(524_288),
 		);

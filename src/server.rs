@@ -71,7 +71,7 @@ use axum::{
 	Json,
 	body::{Body, Bytes},
 	extract::Path,
-	http::{StatusCode, header::CONTENT_TYPE},
+	http::{StatusCode, header::CONTENT_LENGTH, header::CONTENT_TYPE},
 	response::{IntoResponse, Response},
 };
 use core::fmt::{Display, self};
@@ -502,7 +502,8 @@ impl Axum {
 		#[cfg_attr(not(feature = "reasons"), allow(clippy::unwrap_used))]
 		Ok(Response::builder()
 			.status(StatusCode::OK)
-			.header(CONTENT_TYPE, "application/octet-stream")
+			.header(CONTENT_TYPE,   "application/octet-stream")
+			.header(CONTENT_LENGTH, metadata.len())
 			.body(body)
 			.unwrap()
 		)

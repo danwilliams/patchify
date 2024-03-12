@@ -26,7 +26,7 @@ use reqwest::{
 	IntoUrl,
 	StatusCode,
 	Url,
-	header::{HeaderMap, CONTENT_TYPE},
+	header::{HeaderMap, CONTENT_LENGTH, CONTENT_TYPE},
 };
 use rubedo::{
 	crypto::{SigningKey, VerifyingKey},
@@ -161,6 +161,7 @@ pub(crate) fn create_mock_client(responses: Vec<(&str, Result<MockResponse, Mock
 pub(crate) fn create_mock_response(
 	status:       StatusCode,
 	content_type: Option<String>,
+	content_len:  Option<usize>,
 	body:         Result<String, MockError>,
 	sign:         ResponseSignature,
 ) -> (MockResponse, VerifyingKey) {
@@ -185,6 +186,9 @@ pub(crate) fn create_mock_response(
 			if let Some(content_type) = &content_type {
 				drop(headers.insert(CONTENT_TYPE, content_type.parse().unwrap()));
 			}
+			if let Some(content_len) = &content_len {
+				drop(headers.insert(CONTENT_LENGTH, format!("{content_len}").parse().unwrap()));
+			}
 			match &sign {
 				ResponseSignature::GenerateUsing(_) |
 				ResponseSignature::Generate         |
@@ -202,6 +206,7 @@ pub(crate) fn create_mock_response(
 pub(crate) fn create_mock_binary_response(
 	status:       StatusCode,
 	content_type: Option<String>,
+	content_len:  Option<usize>,
 	body:         Result<&[u8], MockError>,
 ) -> MockResponse {
 	MockResponse {
@@ -210,6 +215,9 @@ pub(crate) fn create_mock_binary_response(
 			let mut headers = HeaderMap::new();
 			if let Some(content_type) = &content_type {
 				drop(headers.insert(CONTENT_TYPE, content_type.parse().unwrap()));
+			}
+			if let Some(content_len) = &content_len {
+				drop(headers.insert(CONTENT_LENGTH, format!("{content_len}").parse().unwrap()));
 			}
 			headers
 		},
