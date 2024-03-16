@@ -13,6 +13,7 @@ mod tests;
 use crate::responses::{LatestVersionResponse, VersionHashResponse};
 use core::{
 	fmt::{Display, self},
+	str::FromStr,
 	sync::atomic::{AtomicUsize, Ordering},
 };
 use ed25519_dalek::Signature;
@@ -23,7 +24,7 @@ use parking_lot::RwLock;
 use reqwest::{
 	StatusCode,
 	Url,
-	header::{CONTENT_LENGTH, CONTENT_TYPE},
+	header::{AsHeaderName, CONTENT_LENGTH, CONTENT_TYPE},
 };
 use rubedo::{
 	crypto::{Sha256Hash, VerifyingKey},
@@ -610,18 +611,8 @@ impl Updater {
 		)?;
 		//		Get headers														
 		let (url, response) = self.request(&format!("releases/{version}")).await?;
-		let content_type = response.headers()
-			.get(CONTENT_TYPE)
-			.and_then(|h| h.to_str().ok())
-			.unwrap_or("")
-			.to_owned()
-		;
-		let content_length = response.headers()
-			.get(CONTENT_LENGTH)
-			.and_then(|h| h.to_str().ok())
-			.and_then(|s| s.parse::<usize>().ok())
-			.unwrap_or(0)
-		;
+		let content_type:   String = get_header(&response, CONTENT_TYPE);
+		let content_length: usize  = get_header(&response, CONTENT_LENGTH);
 		//		Check content type												
 		if content_type != "application/octet-stream" {
 			return Err(UpdaterError::UnexpectedContentType(url, content_type, s!("application/octet-stream")));
@@ -722,24 +713,9 @@ impl Updater {
 	/// 
 	async fn decode_and_verify<T: DeserializeOwned>(&self, url: Url, response: Response) -> Result<T, UpdaterError> {
 		//		Get headers														
-		let content_type = response.headers()
-			.get(CONTENT_TYPE)
-			.and_then(|h| h.to_str().ok())
-			.unwrap_or("")
-			.to_owned()
-		;
-		let content_length = response.headers()
-			.get(CONTENT_LENGTH)
-			.and_then(|h| h.to_str().ok())
-			.and_then(|s| s.parse::<usize>().ok())
-			.unwrap_or(0)
-		;
-		let signature = response.headers()
-			.get("x-signature")
-			.and_then(|h| h.to_str().ok())
-			.unwrap_or("")
-			.to_owned()
-		;
+		let content_type:   String = get_header(&response, CONTENT_TYPE);
+		let content_length: usize  = get_header(&response, CONTENT_LENGTH);
+		let signature:      String = get_header(&response, "x-signature");
 		//		Get body														
 		let Ok(body) = response.text().await else {
 			return Err(UpdaterError::InvalidBody(url))
@@ -871,6 +847,33 @@ impl Drop for Updater {
 		//	Send a message to the queue to stop the timer, ignoring any errors
 		let _ignored = self.queue.send(());
     }
+}
+
+
+
+//		Functions
+
+//		get_header																
+/// Gets a header from an HTTP response.
+/// 
+/// This function gets a header from an HTTP response, and converts it to the
+/// specified type.
+/// 
+/// # Parameters
+/// 
+/// * `response` - The HTTP response to get the header from.
+/// * `header`   - The header to get from the response.
+/// 
+fn get_header<K, T>(response: &Response, header: K) -> T
+where
+	K: AsHeaderName,
+	T: Default + FromStr
+{
+	response.headers()
+		.get(header)
+		.and_then(|h| h.to_str().ok())
+		.and_then(|s| T::from_str(s).ok())
+		.unwrap_or_default()
 }
 
 

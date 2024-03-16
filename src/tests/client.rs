@@ -15,7 +15,7 @@ use claims::{assert_err_eq, assert_ok, assert_none, assert_some};
 use futures_util::future::FutureExt;
 use once_cell::sync::Lazy;
 use parking_lot::ReentrantMutexGuard;
-use reqwest::StatusCode;
+use reqwest::{StatusCode, header::HeaderMap};
 use rubedo::std::ByteSized;
 use serde_json::{Value as JsonValue, json};
 use std::{
@@ -1277,6 +1277,42 @@ mod updater_private {
 		//	wrapper around a MockCommand that is already set up with the necessary
 		//	expectations.
 		updater.restart();
+	}
+}
+
+//		Functions																
+#[cfg(test)]
+mod functions {
+	use super::*;
+	
+	//		get_header															
+	#[test]
+	fn get_header__string() {
+		let mock_response = MockResponse {
+			status:  StatusCode::OK,
+			headers: {
+				let mut headers = HeaderMap::new();
+				drop(headers.insert(CONTENT_TYPE, "test".parse().unwrap()));
+				headers
+			},
+			body:    Ok(Arc::new("Test body".into())),
+		};
+		let content_type: String = get_header(&mock_response, CONTENT_TYPE);
+		assert_eq!(content_type, s!("test"));
+	}
+	#[test]
+	fn get_header__integer() {
+		let mock_response = MockResponse {
+			status:  StatusCode::OK,
+			headers: {
+				let mut headers = HeaderMap::new();
+				drop(headers.insert(CONTENT_LENGTH, "1234".parse().unwrap()));
+				headers
+			},
+			body:    Ok(Arc::new("Test body".into())),
+		};
+		let content_length: usize = get_header(&mock_response, CONTENT_LENGTH);
+		assert_eq!(content_length, 1234);
 	}
 }
 
