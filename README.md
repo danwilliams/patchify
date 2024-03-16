@@ -17,6 +17,9 @@ There is a [roadmap for the project](ROADMAP.md), which sets out the planned
 releases and their associated functionality, and indicates current status
 according to the intended goals.
 
+There is full test coverage, with unit tests, integration tests, and end-to-end
+tests, utilising various types of mock. There are also helpful examples.
+
 The main sections in this README are:
 
   - [Features](#features)

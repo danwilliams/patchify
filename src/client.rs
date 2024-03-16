@@ -1,4 +1,33 @@
 //! This module provides client-side functionality to add to an application.
+//! 
+//! The main struct is [`Updater`], which provides a service to check for
+//! updates at intervals, and upgrade the application. This is done by querying
+//! the specified API server, and if an update is found, it will be downloaded
+//! and installed, and the application will be restarted. This will only occur
+//! once any critical actions that have been registered are complete.
+//! 
+//! # Critical actions
+//! 
+//! Critical actions are registered using the [`Updater::register_action()`]
+//! method, and deregistered using the [`Updater::deregister_action()`] method.
+//! When a critical action is in progress, the updater will not restart the
+//! application, and will wait until all critical actions are complete before
+//! doing so.
+//! 
+//! # Status
+//! 
+//! The [`Status`] enum is used to represent the possible statuses that the
+//! updater can have. The current status can be obtained at any time, using the
+//! [`Updater::status()`] method, and the status change events can be
+//! subscribed to using the [`Updater::subscribe()`] method.
+//! 
+//! # Failure
+//! 
+//! If an error occurs when trying to update, it will be logged, and the
+//! updater will stop checking for updates.
+//! 
+
+
 
 //		Modules
 
