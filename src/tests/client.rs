@@ -542,7 +542,94 @@ mod updater_private {
 		assert_eq!(updater.status(), Status::Idle);
 		updater.check_for_updates().await;
 		assert_eq!(updater.status(), Status::Downloading(version.clone(), 0));
-		//	TODO: Check download progress is 100%
+	}
+	#[tokio::test]
+	async fn check_for_updates__download_partial() {
+		let version                      = Version::new(2, 3, 4);
+		let url1                         = "https://api.example.com/api/latest";
+		let url2                         = "https://api.example.com/api/releases/2.3.4";
+		let payload                      = b"Test payload";
+		let json                         = json!({
+			"version": s!("2.3.4"),
+		}).to_string();
+		let (mock_response1, public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Some(json.len()),
+			Ok(json),
+			ResponseSignature::Generate,
+		);
+		let mock_response2 = create_mock_binary_response(
+			StatusCode::OK,
+			Some(s!("application/octet-stream")),
+			//	Intentionally-incorrect content length, to make the process fail
+			Some(payload.len() * 2),
+			Ok(payload),
+		);
+		let mock_client = create_mock_client(vec![
+			(url1, Ok(mock_response1)),
+			(url2, Ok(mock_response2)),
+		]);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			public_key,
+			mock_client,
+		);
+		assert_eq!(updater.status(), Status::Idle);
+		updater.check_for_updates().await;
+		assert_eq!(updater.status(), Status::Downloading(version.clone(), 50));
+	}
+	#[tokio::test]
+	async fn check_for_updates__download_full() {
+		let version                      = Version::new(2, 3, 4);
+		let private_key                  = generate_new_private_key();
+		let url1                         = "https://api.example.com/api/latest";
+		let url2                         = "https://api.example.com/api/releases/2.3.4";
+		let url3                         = "https://api.example.com/api/hashes/2.3.4";
+		let payload                      = b"Test payload";
+		let json1                        = json!({
+			"version": s!("2.3.4"),
+		}).to_string();
+		let json2                        = json!({
+			"version": s!("2.3.4"),
+			//	Intentionally-incorrect hash, to make the process fail
+			"hash":    hex::encode(Sha256::digest("Some other payload")),
+		}).to_string();
+		let (mock_response1, public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Some(json1.len()),
+			Ok(json1),
+			ResponseSignature::GenerateUsing(private_key.clone()),
+		);
+		let mock_response2 = create_mock_binary_response(
+			StatusCode::OK,
+			Some(s!("application/octet-stream")),
+			Some(payload.len()),
+			Ok(payload),
+		);
+		let (mock_response3, _public_key) = create_mock_response(
+			StatusCode::OK,
+			Some(s!("application/json")),
+			Some(json2.len()),
+			Ok(json2),
+			ResponseSignature::GenerateUsing(private_key.clone()),
+		);
+		let mock_client = create_mock_client(vec![
+			(url1, Ok(mock_response1)),
+			(url2, Ok(mock_response2)),
+			(url3, Ok(mock_response3)),
+		]);
+		let updater = setup_safe_updater(
+			Version::new(1, 0, 0),
+			"https://api.example.com/api/",
+			public_key,
+			mock_client,
+		);
+		assert_eq!(updater.status(), Status::Idle);
+		updater.check_for_updates().await;
+		assert_eq!(updater.status(), Status::Downloading(version.clone(), 100));
 	}
 	#[tokio::test]
 	async fn check_for_updates__install_failed() {

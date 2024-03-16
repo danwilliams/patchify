@@ -628,6 +628,13 @@ impl Updater {
 			)?;
 			hasher.update(&chunk);
 			body_len = body_len.saturating_add(chunk.len());
+			#[cfg_attr(    feature = "reasons",  allow(clippy::cast_possible_truncation, reason = "Loss of precision is not important here"))]
+			#[cfg_attr(not(feature = "reasons"), allow(clippy::cast_possible_truncation))]
+			#[cfg_attr(    feature = "reasons",  allow(clippy::cast_precision_loss, reason = "Loss of precision is not important here"))]
+			#[cfg_attr(not(feature = "reasons"), allow(clippy::cast_precision_loss))]
+			#[cfg_attr(    feature = "reasons",  allow(clippy::cast_sign_loss, reason = "Loss of sign is not important here"))]
+			#[cfg_attr(not(feature = "reasons"), allow(clippy::cast_sign_loss))]
+			self.set_status(Status::Downloading(version.clone(), (body_len as f64 / content_length as f64 * 100.0) as u8));
 		}
 		//		Check content length											
 		if body_len < content_length {

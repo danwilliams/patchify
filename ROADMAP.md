@@ -35,7 +35,7 @@
       - [x] Check versions against provided binaries upon start-up
           - [x] Exit with an error if there are any missing, or if any hashes
                 don’t match
-  - [ ] **Tests**
+  - [x] **Tests**
   - [x] **Documentation**
 
 ### Client
@@ -59,14 +59,14 @@
           - [x] Check response against version in use
           - [x] Use the public key to verify the legitimacy of the provided
                 information
-  - [ ] **Perform the update**
+  - [x] **Perform the update**
       - [x] Make update status information available
           - [x] Update central status enum at each stage
           - [x] Broadcast the status updates to interested subscribers
       - [x] Download the new binary
           - [x] Save into a tmpdir — this will be auto-cleaned when the
                 application exits
-          - [ ] Provide information about the download progress
+          - [x] Provide information about the download progress
       - [x] Verify the correctness of the downloaded binary
           - [x] Run a SHA256 hash and compare with the published hash
           - [x] Use the public key to verify the legitimacy of the provided
@@ -84,7 +84,7 @@
   - [x] **Errors and logging**
       - [x] Log all attempts and their results
       - [x] Log any issues such as failed verification of signed data
-  - [ ] **Tests**
+  - [x] **Tests**
   - [x] **Documentation**
 
 
