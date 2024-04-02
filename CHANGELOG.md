@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog][], and this project adheres to
 [Semantic Versioning][].
 
 
+## 0.1.1 (02 April 2024)
+
+### Changed
+
+  - Updated lint configuration for Rust 1.77
+  - Updated crate dependencies
+
+
 ## 0.1.0 (16 March 2024)
 
 ### Added
