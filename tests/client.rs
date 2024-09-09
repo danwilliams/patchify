@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+#![allow(unused_crate_dependencies)]
 
 //		Modules
 
