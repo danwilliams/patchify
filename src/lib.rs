@@ -156,6 +156,11 @@
 	clippy::unconditional_recursion,
 )]
 
+//		Lint customisations														
+//	Customisations of the standard linting configuration
+#![cfg_attr(    feature = "reasons",  allow(clippy::multiple_crate_versions, reason = "Cannot resolve all these"))]
+#![cfg_attr(not(feature = "reasons"), allow(clippy::multiple_crate_versions))]
+
 
 
 //		Modules
