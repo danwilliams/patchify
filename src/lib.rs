@@ -75,7 +75,6 @@
 	clippy::dbg_macro,
 	clippy::exit,
 	clippy::infinite_loop,
-	clippy::missing_assert_message,
 	clippy::missing_docs_in_private_items,
 	clippy::mod_module_files,
 	clippy::multiple_inherent_impl,
@@ -101,10 +100,12 @@
 	clippy::integer_division,
 	clippy::lossy_float_literal,
 	clippy::mem_forget,
+	clippy::missing_assert_message,
 	clippy::panic,
 	clippy::print_stderr,
 	clippy::print_stdout,
 	clippy::rc_mutex,
+	clippy::renamed_function_params,
 	clippy::try_err,
 	clippy::unwrap_in_result,
 	clippy::unwrap_used,
@@ -153,7 +154,12 @@
 )]
 //	Clippy suspicious lints
 #![deny(
+	clippy::const_is_empty,
+	clippy::deprecated_clippy_cfg_attr,
+	clippy::incompatible_msrv,
+	clippy::multiple_bound_locations,
 	clippy::unconditional_recursion,
+	clippy::unnecessary_clippy_cfg,
 )]
 
 //		Lint customisations														
