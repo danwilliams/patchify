@@ -18,9 +18,9 @@
 
 //		Packages
 
+use core::cell::RefCell;
 use parking_lot::ReentrantMutex;
 use std::{
-	cell::RefCell,
 	io::Result as IoResult,
 	path::PathBuf,
 };
@@ -29,14 +29,16 @@ use std::{
 
 //		Statics
 
-pub(crate) static MOCK_EXE: ReentrantMutex<RefCell<Option<PathBuf>>> = ReentrantMutex::new(RefCell::new(None));
+pub static MOCK_EXE: ReentrantMutex<RefCell<Option<PathBuf>>> = ReentrantMutex::new(RefCell::new(None));
 
 
 
 //		Functions
 
 //		mock_current_exe														
-pub(crate) fn mock_current_exe() -> IoResult<PathBuf> {
+#[cfg_attr(    feature = "reasons",  allow(clippy::unnecessary_wraps, reason = "Needed for mock"))]
+#[cfg_attr(not(feature = "reasons"), allow(clippy::unnecessary_wraps))]
+pub fn mock_current_exe() -> IoResult<PathBuf> {
 	Ok(MOCK_EXE.lock().borrow().as_ref().expect("Needs initialisation").clone())
 }
 

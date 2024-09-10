@@ -38,7 +38,7 @@ use mockall::{Sequence, automock};
 
 //§		Command																	
 #[automock]
-pub(crate) trait Command {
+pub trait Command {
 	//		args																
 	fn args(&self, args: Vec<String>);
 	
@@ -61,17 +61,17 @@ pub(crate) trait Command {
 
 //		FakeCommand																
 #[derive(Debug)]
-pub(crate) struct FakeCommand {
+pub struct FakeCommand {
 	command: MockCommand,
 }
 
 //󰭅		FakeCommand																
 impl FakeCommand {
 	//		new																	
-	pub(crate) fn new(program: PathBuf) -> Self {
-		if program != mock_current_exe().unwrap() {
-			panic!("Command instance should be created with the current executable path");
-		}
+	pub fn new(program: &PathBuf) -> Self {
+		assert_eq!(program, &mock_current_exe().unwrap(),
+			"Command instance should be created with the current executable path"
+		);
 		let mut sequence     = Sequence::new();
 		let mut mock_command = MockCommand::new();
 		let _ = mock_command.expect_args()
@@ -106,30 +106,32 @@ impl FakeCommand {
 	}
 	
 	//		args																
-	pub(crate) fn args(&mut self, args: Vec<String>) -> &mut Self {
+	pub fn args(&mut self, args: Vec<String>) -> &mut Self {
 		self.command.args(args);
 		self
 	}
 	
 	//		exec																
-	pub(crate) fn exec(&mut self) -> IoError {
+	#[cfg_attr(    feature = "reasons",  allow(clippy::needless_pass_by_ref_mut, reason = "Needed for mock"))]
+	#[cfg_attr(not(feature = "reasons"), allow(clippy::needless_pass_by_ref_mut))]
+	pub fn exec(&mut self) -> IoError {
 		self.command.exec()
 	}
 	
 	//		stdin																
-	pub(crate) fn stdin(&mut self, cfg: MockStdio) -> &mut Self {
+	pub fn stdin(&mut self, cfg: MockStdio) -> &mut Self {
 		self.command.stdin(cfg);
 		self
 	}
 	
 	//		stdout																
-	pub(crate) fn stdout(&mut self, cfg: MockStdio) -> &mut Self {
+	pub fn stdout(&mut self, cfg: MockStdio) -> &mut Self {
 		self.command.stdout(cfg);
 		self
 	}
 	
 	//		stderr																
-	pub(crate) fn stderr(&mut self, cfg: MockStdio) -> &mut Self {
+	pub fn stderr(&mut self, cfg: MockStdio) -> &mut Self {
 		self.command.stderr(cfg);
 		self
 	}
@@ -137,12 +139,14 @@ impl FakeCommand {
 
 //		MockStdio																
 #[derive(Debug)]
-pub(crate) struct MockStdio;
+pub struct MockStdio;
 
 //󰭅		MockStdio																
+#[cfg_attr(    feature = "reasons",  allow(clippy::missing_const_for_fn, reason = "Needed for mock"))]
+#[cfg_attr(not(feature = "reasons"), allow(clippy::missing_const_for_fn))]
 impl MockStdio {
 	//		inherit																
-	pub(crate) fn inherit() -> Self {
+	pub fn inherit() -> Self {
 		Self
 	}
 }
@@ -152,6 +156,8 @@ impl MockStdio {
 //		Functions
 
 //		mock_exit																
-pub(crate) fn mock_exit(_code: i32) {}
+#[cfg_attr(    feature = "reasons",  allow(clippy::missing_const_for_fn, reason = "Needed for mock"))]
+#[cfg_attr(not(feature = "reasons"), allow(clippy::missing_const_for_fn))]
+pub fn mock_exit(_code: i32) {}
 
 

@@ -1,5 +1,31 @@
-#![allow(non_snake_case)]
 #![allow(unused_crate_dependencies)]
+
+//	Lints specifically disabled for integration tests
+#![allow(
+	non_snake_case,
+	unreachable_pub,
+	clippy::cast_lossless,
+	clippy::cast_precision_loss,
+	clippy::cognitive_complexity,
+	clippy::default_numeric_fallback,
+	clippy::exhaustive_enums,
+	clippy::exhaustive_structs,
+	clippy::expect_used,
+	clippy::indexing_slicing,
+	clippy::let_underscore_must_use,
+	clippy::let_underscore_untyped,
+	clippy::missing_assert_message,
+	clippy::missing_panics_doc,
+	clippy::mod_module_files,
+	clippy::must_use_candidate,
+	clippy::panic,
+	clippy::print_stdout,
+	clippy::tests_outside_test_module,
+	clippy::unwrap_in_result,
+	clippy::unwrap_used,
+)]
+
+
 
 //		Modules
 
@@ -11,7 +37,6 @@ mod common;
 
 use crate::common::{client::*, server::*, utils::*};
 use assert_json_diff::assert_json_eq;
-use hex;
 use reqwest::StatusCode;
 use rubedo::{
 	crypto::Sha256Hash,
@@ -37,7 +62,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_ping() {
 		initialize();
-		let (address, _releases_dir) = create_test_server().await;
+		let (address, _releases_dir) = create_test_server();
 		let (status, _, _, _, body) = request(
 			format!("http://{address}/api/ping"),
 			None,
@@ -50,13 +75,13 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_latest() {
 		initialize();
-		let (address, _releases_dir) = create_test_server().await;
+		let (address, _releases_dir) = create_test_server();
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/latest"),
 			Some(KEY.get().unwrap().verifying_key()),
 		).await;
-		let parsed:  JsonValue = serde_json::from_slice(&body).unwrap();
-		let crafted: JsonValue = json!({
+		let parsed  = serde_json::from_slice::<JsonValue>(&body).unwrap();
+		let crafted = json!({
 			"version": s!("1.1.0"),
 		});
 		assert_eq!(status,       StatusCode::OK);
@@ -69,13 +94,13 @@ mod endpoints {
 	async fn get_latest__fail_signature_verification() {
 		initialize();
 		let other_public_key   = generate_new_private_key().verifying_key();
-		let (address, _releases_dir) = create_test_server().await;
+		let (address, _releases_dir) = create_test_server();
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/latest"),
 			Some(other_public_key),
 		).await;
-		let parsed:  JsonValue = serde_json::from_slice(&body).unwrap();
-		let crafted: JsonValue = json!({
+		let parsed  = serde_json::from_slice::<JsonValue>(&body).unwrap();
+		let crafted = json!({
 			"version": s!("1.1.0"),
 		});
 		assert_eq!(status,       StatusCode::OK);
@@ -89,13 +114,13 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_hashes_version() {
 		initialize();
-		let (address, _releases_dir) = create_test_server().await;
+		let (address, _releases_dir) = create_test_server();
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/hashes/0.2.0"),
 			Some(KEY.get().unwrap().verifying_key()),
 		).await;
-		let parsed:  JsonValue = serde_json::from_slice(&body).unwrap();
-		let crafted: JsonValue = json!({
+		let parsed  = serde_json::from_slice::<JsonValue>(&body).unwrap();
+		let crafted = json!({
 			"version": s!("0.2.0"),
 			"hash":    s!("45fb074c75cfae708144969a1df5b33d845c95475a5ed69a60736b9391aac73b"),
 		});
@@ -108,7 +133,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_hashes_version__not_found() {
 		initialize();
-		let (address, _releases_dir) = create_test_server().await;
+		let (address, _releases_dir) = create_test_server();
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/hashes/3.2.1"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -122,7 +147,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_hashes_version__invalid() {
 		initialize();
-		let (address, _releases_dir) = create_test_server().await;
+		let (address, _releases_dir) = create_test_server();
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/hashes/invalid"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -138,7 +163,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_releases_version() {
 		initialize();
-		let (address, _releases_dir) = create_test_server().await;
+		let (address, _releases_dir) = create_test_server();
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/releases/1.0.0"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -152,7 +177,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_releases_version__medium_binary() {
 		initialize();
-		let (address, _releases_dir) = create_test_server().await;
+		let (address, _releases_dir) = create_test_server();
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/releases/1.1.0"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -161,12 +186,12 @@ mod endpoints {
 		assert_eq!(content_type,  Some(s!("application/octet-stream")));
 		assert_eq!(content_len,   Some(5_120));
 		assert_eq!(verified,      None);
-		assert_eq!(body.as_ref(), vec![0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF].repeat(512));
+		assert_eq!(body.as_ref(), [0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF].repeat(512));
 	}
 	#[tokio::test]
 	async fn get_releases_version__large_binary() {
 		initialize();
-		let (address, _releases_dir) = create_test_server().await;
+		let (address, _releases_dir) = create_test_server();
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/releases/0.2.0"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -175,12 +200,12 @@ mod endpoints {
 		assert_eq!(content_type,  Some(s!("application/octet-stream")));
 		assert_eq!(content_len,   Some(5_242_880));
 		assert_eq!(verified,      None);
-		assert_eq!(body.as_ref(), vec![0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF].repeat(524_288));
+		assert_eq!(body.as_ref(), [0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF].repeat(0x0008_0000));
 	}
 	#[tokio::test]
 	async fn get_releases_version__not_found() {
 		initialize();
-		let (address, _releases_dir) = create_test_server().await;
+		let (address, _releases_dir) = create_test_server();
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/releases/4.5.6"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -194,7 +219,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_releases_version__invalid() {
 		initialize();
-		let (address, _releases_dir) = create_test_server().await;
+		let (address, _releases_dir) = create_test_server();
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/releases/invalid"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -208,8 +233,8 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_releases_version__missing() {
 		initialize();
-		let (address, releases_dir) = create_test_server().await;
-		fs::remove_file(&releases_dir.path().join("test-1.0.0")).unwrap();
+		let (address, releases_dir) = create_test_server();
+		fs::remove_file(releases_dir.path().join("test-1.0.0")).unwrap();
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/releases/1.0.0"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -230,32 +255,37 @@ mod scenarios {
 	#[tokio::test]
 	async fn download_and_verify_latest_release() {
 		initialize();
-		let (address, _releases_dir) = create_test_server().await;
+		let (address, _releases_dir) = create_test_server();
 		let public_key = Some(KEY.get().unwrap().verifying_key());
 		
 		//		Get latest version												
-		let (status, content_type, content_len, verified, body) = request(
-			format!("http://{address}/api/latest"),
-			public_key,
-		).await;
-		let json:   JsonValue = serde_json::from_slice(&body).unwrap();
-		let latest: Version   = json["version"].as_str().unwrap().parse().unwrap();
-		assert_eq!(status,       StatusCode::OK);
-		assert_eq!(content_type, Some(s!("application/json")));
-		assert_eq!(content_len,  Some(19));
-		assert_eq!(verified,     Some(true));
-		assert_eq!(latest,       Version::new(1, 1, 0));
+		let latest = {
+			let (status, content_type, content_len, verified, body) = request(
+				format!("http://{address}/api/latest"),
+				public_key,
+			).await;
+			let json:  JsonValue = serde_json::from_slice(&body).unwrap();
+			let latest: Version  = json["version"].as_str().unwrap().parse().unwrap();
+			assert_eq!(status,       StatusCode::OK);
+			assert_eq!(content_type, Some(s!("application/json")));
+			assert_eq!(content_len,  Some(19));
+			assert_eq!(verified,     Some(true));
+			assert_eq!(latest,       Version::new(1, 1, 0));
+			latest
+		};
 		
 		//		Download release file											
-		let (status, content_type, content_len, verified, body) = request(
-			format!("http://{address}/api/releases/{latest}"),
-			public_key,
-		).await;
-		let release_file = body.as_ref();
-		assert_eq!(status,       StatusCode::OK);
-		assert_eq!(content_type, Some(s!("application/octet-stream")));
-		assert_eq!(content_len,  Some(5_120));
-		assert_eq!(verified,     None);
+		let release_file = {
+			let (status, content_type, content_len, verified, body) = request(
+				format!("http://{address}/api/releases/{latest}"),
+				public_key,
+			).await;
+			assert_eq!(status,       StatusCode::OK);
+			assert_eq!(content_type, Some(s!("application/octet-stream")));
+			assert_eq!(content_len,  Some(5_120));
+			assert_eq!(verified,     None);
+			body
+		};
 		
 		//		Verify release file												
 		let (status, content_type, content_len, verified, body) = request(
@@ -277,23 +307,25 @@ mod scenarios {
 	#[tokio::test]
 	async fn download_and_verify_release_with_hash_fail() {
 		initialize();
-		let (address, releases_dir) = create_test_server().await;
+		let (address, releases_dir) = create_test_server();
 		let public_key = Some(KEY.get().unwrap().verifying_key());
 		let wanted     = Version::new(1, 0, 0);
-		let mut file   = File::create(&releases_dir.path().join("test-1.0.0")).unwrap();
+		let mut file   = File::create(releases_dir.path().join("test-1.0.0")).unwrap();
 		write!(file, "invalid").unwrap();
 		
 		//		Download release file											
-		let (status, content_type, content_len, verified, body) = request(
-			format!("http://{address}/api/releases/{wanted}"),
-			public_key,
-		).await;
-		let release_file = body.as_ref();
-		assert_eq!(status,       StatusCode::OK);
-		assert_eq!(content_type, Some(s!("application/octet-stream")));
-		assert_eq!(content_len,  Some(7));
-		assert_eq!(verified,     None);
-		assert_eq!(release_file, b"invalid");
+		let release_file = {
+			let (status, content_type, content_len, verified, body) = request(
+				format!("http://{address}/api/releases/{wanted}"),
+				public_key,
+			).await;
+			assert_eq!(status,        StatusCode::OK);
+			assert_eq!(content_type,  Some(s!("application/octet-stream")));
+			assert_eq!(content_len,   Some(7));
+			assert_eq!(verified,      None);
+			assert_eq!(body.as_ref(), b"invalid");
+			body
+		};
 		
 		//		Verify release file												
 		let (status, content_type, content_len, verified, body) = request(

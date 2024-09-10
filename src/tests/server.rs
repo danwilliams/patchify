@@ -1,5 +1,3 @@
-#![allow(non_snake_case)]
-
 //		Packages
 
 use super::*;
@@ -25,11 +23,11 @@ use velcro::hash_map;
 //		Constants
 
 const VERSION_DATA: [(Version, usize, &[u8]); 5] = [
-	(Version::new(1, 0, 0),       1, b"foo"),
-	(Version::new(0, 1, 0),       1, b"bar"),
-	(Version::new(0, 0, 1),       1, b"foobarbaz"),
-	(Version::new(1, 1, 0),     512, &[0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF]),  //  5KB binary string
-	(Version::new(0, 2, 0), 524_288, &[0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF]),  //  5MB binary string
+	(Version::new(1, 0, 0),           1, b"foo"),
+	(Version::new(0, 1, 0),           1, b"bar"),
+	(Version::new(0, 0, 1),           1, b"foobarbaz"),
+	(Version::new(1, 1, 0),         512, &[0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF]),  //  5KB binary string
+	(Version::new(0, 2, 0), 0x0008_0000, &[0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF]),  //  5MB binary string
 ];
 
 
@@ -38,6 +36,8 @@ const VERSION_DATA: [(Version, usize, &[u8]); 5] = [
 
 //		setup_core																
 fn setup_core(releases_dir: &TempDir) -> Result<Core, ReleaseError> {
+	#[cfg_attr(    feature = "reasons",  allow(clippy::pattern_type_mismatch, reason = "Not resolvable"))]
+	#[cfg_attr(not(feature = "reasons"), allow(clippy::pattern_type_mismatch))]
 	Core::new(Config {
 		appname:  s!("test"),
 		key:      generate_new_private_key(),
@@ -55,10 +55,10 @@ fn setup_core(releases_dir: &TempDir) -> Result<Core, ReleaseError> {
 //		setup_files																
 fn setup_files() -> TempDir {
 	let releases_dir = tempdir().unwrap();
-	for (version, repetitions, data) in VERSION_DATA.iter() {
-		let path     = releases_dir.path().join(&format!("test-{}", version));
+	for (version, repetitions, data) in VERSION_DATA {
+		let path     = releases_dir.path().join(&format!("test-{version}"));
 		let mut file = File::create(&path).unwrap();
-		file.write_all(&data.repeat(*repetitions)).unwrap();
+		file.write_all(&data.repeat(repetitions)).unwrap();
 	}
 	releases_dir
 }
@@ -170,7 +170,7 @@ mod axum {
 	#[tokio::test]
 	async fn get_latest_version() {
 		let core     = Arc::new(setup_core(&setup_files()).unwrap());
-		let unpacked = Axum::get_latest_version(Extension(core.clone())).await.into_response().unpack().unwrap();
+		let unpacked = Axum::get_latest_version(Extension(Arc::clone(&core))).await.into_response().unpack().unwrap();
 		let crafted  = UnpackedResponse::new(
 			StatusCode::OK,
 			vec![
@@ -190,7 +190,7 @@ mod axum {
 	async fn get_hash_for_version() {
 		let core     = Arc::new(setup_core(&setup_files()).unwrap());
 		let unpacked = Axum::get_hash_for_version(
-			Extension(core.clone()),
+			Extension(Arc::clone(&core)),
 			Path(Version::new(0, 2, 0)),
 		).await.into_response().unpack().unwrap();
 		let crafted  = UnpackedResponse::new(
@@ -231,7 +231,7 @@ mod axum {
 		let dir      = setup_files();
 		let core     = Arc::new(setup_core(&dir).unwrap());
 		let unpacked = Axum::get_release_file(
-			Extension(core.clone()),
+			Extension(Arc::clone(&core)),
 			Path(Version::new(0, 0, 1)),
 		).await.into_response().unpack().unwrap();
 		let crafted  = UnpackedResponse::new(
@@ -249,7 +249,7 @@ mod axum {
 		let dir      = setup_files();
 		let core     = Arc::new(setup_core(&dir).unwrap());
 		let unpacked = Axum::get_release_file(
-			Extension(core.clone()),
+			Extension(Arc::clone(&core)),
 			Path(Version::new(1, 1, 0)),
 		).await.into_response().unpack().unwrap();
 		let crafted  = UnpackedResponse::new(
@@ -258,7 +258,7 @@ mod axum {
 				(s!("content-length"), s!("5120")),
 				(s!("content-type"),   s!("application/octet-stream")),
 			],
-			vec![0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF].repeat(512),
+			[0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF].repeat(512),
 		);
 		assert_json_eq!(unpacked, crafted);
 	}
@@ -267,7 +267,7 @@ mod axum {
 		let dir      = setup_files();
 		let core     = Arc::new(setup_core(&dir).unwrap());
 		let unpacked = Axum::get_release_file(
-			Extension(core.clone()),
+			Extension(Arc::clone(&core)),
 			Path(Version::new(0, 2, 0)),
 		).await.into_response().unpack().unwrap();
 		let crafted  = UnpackedResponse::new(
@@ -276,7 +276,7 @@ mod axum {
 				(s!("content-length"), s!("5242880")),
 				(s!("content-type"),   s!("application/octet-stream")),
 			],
-			vec![0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF].repeat(524_288),
+			[0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF].repeat(0x0008_0000),
 		);
 		assert_json_eq!(unpacked, crafted);
 	}
@@ -285,7 +285,7 @@ mod axum {
 		let dir      = setup_files();
 		let core     = Arc::new(setup_core(&dir).unwrap());
 		let unpacked = Axum::get_release_file(
-			Extension(core.clone()),
+			Extension(Arc::clone(&core)),
 			Path(Version::new(7, 8, 9)),
 		).await.into_response().unpack().unwrap();
 		let crafted  = UnpackedResponse::new(
@@ -302,9 +302,9 @@ mod axum {
 	async fn get_release_file__missing() {
 		let dir      = setup_files();
 		let core     = Arc::new(setup_core(&dir).unwrap());
-		fs::remove_file(&dir.path().join("test-0.0.1")).unwrap();
+		fs::remove_file(dir.path().join("test-0.0.1")).unwrap();
 		let unpacked = Axum::get_release_file(
-			Extension(core.clone()),
+			Extension(Arc::clone(&core)),
 			Path(Version::new(0, 0, 1)),
 		).await.into_response().unpack().unwrap();
 		let crafted  = UnpackedResponse::new(
@@ -331,7 +331,7 @@ mod axum {
 		let crafted  = UnpackedResponse::new(
 			StatusCode::OK,
 			vec![
-				(s!("x-signature"), core.config.key.sign("This is a test".as_bytes()).to_string()),
+				(s!("x-signature"), core.config.key.sign(b"This is a test").to_string()),
 			],
 			"This is a test",
 		);
@@ -349,8 +349,8 @@ mod axum {
 		).unpack().unwrap();
 		assert_eq!(unpacked.status, StatusCode::OK);
 		assert_eq!(unpacked.headers[0].name,  "x-signature");
-		assert_eq!(unpacked.headers[0].value, core.config.key.sign("This is a test".as_bytes()).to_string());
-		assert_ne!(unpacked.headers[0].value, other_key      .sign("This is a test".as_bytes()).to_string());
+		assert_eq!(unpacked.headers[0].value, core.config.key.sign(b"This is a test").to_string());
+		assert_ne!(unpacked.headers[0].value, other_key      .sign(b"This is a test").to_string());
 		assert_eq!(unpacked.body.as_bytes(),  b"This is a test");
 	}
 }

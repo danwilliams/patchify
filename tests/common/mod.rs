@@ -1,3 +1,5 @@
+//! Common shared functionality for tests and examples.
+
 //		Modules
 
 pub mod client;

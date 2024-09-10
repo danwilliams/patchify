@@ -1,6 +1,8 @@
+//! Common shared server functionality for tests and examples.
+
 //		Packages
 
-use crate::common::utils::*;
+use crate::common::utils::generate_new_private_key;
 use axum::{
 	Extension,
 	Router,
@@ -9,6 +11,10 @@ use axum::{
 	routing::get,
 };
 use bytes::Bytes;
+use core::{
+	net::{IpAddr, SocketAddr},
+	time::Duration,
+};
 use patchify::server::{
 	Axum as Patchify,
 	Config as PatchifyConfig,
@@ -17,7 +23,6 @@ use patchify::server::{
 use rubedo::{
 	crypto::{Sha256Hash, SigningKey},
 	std::ByteSized,
-	sugar::s,
 };
 use semver::Version;
 use sha2::{Sha256, Digest};
@@ -25,10 +30,8 @@ use std::{
 	collections::HashMap,
 	fs::File,
 	io::{Write, stdout},
-	net::{IpAddr, SocketAddr},
 	path::PathBuf,
 	sync::{Arc, Once, OnceLock},
-	time::Duration,
 };
 use tempfile::{tempdir, TempDir};
 use tokio::spawn;
@@ -50,19 +53,23 @@ use tracing_subscriber::{
 
 //		Constants
 
+/// A list of available versions with their sizes and data.
 pub const VERSION_DATA: [(Version, usize, &[u8]); 5] = [
-	(Version::new(1, 0, 0),       1, b"foo"),
-	(Version::new(0, 1, 0),       1, b"bar"),
-	(Version::new(0, 0, 1),       1, b"foobarbaz"),
-	(Version::new(1, 1, 0),     512, &[0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF]),  //  5KB binary string
-	(Version::new(0, 2, 0), 524_288, &[0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF]),  //  5MB binary string
+	(Version::new(1, 0, 0),           1, b"foo"),
+	(Version::new(0, 1, 0),           1, b"bar"),
+	(Version::new(0, 0, 1),           1, b"foobarbaz"),
+	(Version::new(1, 1, 0),         512, &[0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF]),  //  5KB binary string
+	(Version::new(0, 2, 0), 0x0008_0000, &[0x00, 0x01, 0x23, 0x45, 0x67, 0x89, 0x1A, 0xBC, 0xDE, 0xFF]),  //  5MB binary string
 ];
 
 
 
 //		Statics
 
+/// A global initialization lock.
 pub static INIT: Once                 = Once::new();
+
+/// A global signing key.
 pub static KEY:  OnceLock<SigningKey> = OnceLock::new();
 
 
@@ -70,6 +77,7 @@ pub static KEY:  OnceLock<SigningKey> = OnceLock::new();
 //		Functions
 
 //		initialize																
+/// Initializes the global logger and signing key.
 pub fn initialize() {
 	INIT.call_once(|| {
 		registry()
@@ -89,7 +97,14 @@ pub fn initialize() {
 }
 
 //		create_basic_server														
-pub async fn create_basic_server(
+/// Creates a basic server with the provided routes.
+/// 
+/// # Parameters
+/// 
+/// * `address` - The address to bind the server to.
+/// * `routes`  - The routes to use for the server.
+/// 
+pub fn create_basic_server(
 	address: SocketAddr,
 	routes:  Router,
 ) -> SocketAddr {
@@ -105,25 +120,35 @@ pub async fn create_basic_server(
 					.latency_unit(LatencyUnit::Micros)
 			)
 			.on_body_chunk(|chunk: &Bytes, _latency: Duration, _span: &Span| {
-				debug!("Sending {} bytes", chunk.len())
+				debug!("Sending {} bytes", chunk.len());
 			})
 			.on_eos(|_trailers: Option<&HeaderMap>, stream_duration: Duration, _span: &Span| {
-				debug!("Stream closed after {:?}", stream_duration)
+				debug!("Stream closed after {:?}", stream_duration);
 			})
 			.on_failure(|_error: ServerErrorsFailureClass, _latency: Duration, _span: &Span| {
-				error!("Something went wrong")
+				error!("Something went wrong");
 			})
 		)
 	;
-	let server  = Server::bind(&address).serve(app.into_make_service());
-	let address = server.local_addr();
-	spawn(server);
-	address
+	let server            = Server::bind(&address).serve(app.into_make_service());
+	let allocated_address = server.local_addr();
+	drop(spawn(server));
+	allocated_address
 }
 
 //		create_patchify_api_server												
-pub async fn create_patchify_api_server(
-	appname:  String,
+/// Creates a Patchify API server with the provided configuration.
+/// 
+/// # Parameters
+/// 
+/// * `appname`  - The name of the application.
+/// * `address`  - The address to bind the server to.
+/// * `routes`   - The routes to use for the server.
+/// * `releases` - The path to the releases directory.
+/// * `versions` - A map of versions to their SHA-256 hashes.
+/// 
+pub fn create_patchify_api_server(
+	appname:  &str,
 	address:  SocketAddr,
 	routes:   Router,
 	releases: PathBuf,
@@ -131,7 +156,7 @@ pub async fn create_patchify_api_server(
 ) -> SocketAddr {
 	println!("Verifying release hashes... this could take a while");
 	let patchify = PatchifyCore::new(PatchifyConfig {
-		appname:          appname.clone(),
+		appname:          appname.to_owned(),
 		key:              KEY.get().unwrap().clone(),
 		releases,
 		stream_threshold: 1000,
@@ -139,38 +164,42 @@ pub async fn create_patchify_api_server(
 		read_buffer:      128,
 		versions,
 	}).unwrap();
-	let address = create_basic_server(
+	let allocated_address = create_basic_server(
 		address,
 		routes.layer(Extension(Arc::new(patchify))),
-	).await;
-	println!("Listening on: {address}");
+	);
+	println!("Listening on: {allocated_address}");
 	println!("App name:     {appname}");
 	println!("Public key:   {}", KEY.get().unwrap().verifying_key().to_hex());
-	address
+	allocated_address
 }
 
 //		create_test_server														
-pub async fn create_test_server() -> (SocketAddr, TempDir) {
+/// Creates a test server with the provided versions.
+pub fn create_test_server() -> (SocketAddr, TempDir) {
 	let releases_dir = tempdir().unwrap();
 	let address      = create_patchify_api_server(
-		s!("test"),
+		"test",
 		SocketAddr::from((IpAddr::from([127, 0, 0, 1]), 0)),
 		patchify_api_routes(),
 		releases_dir.path().to_path_buf(),
+		#[cfg_attr(    feature = "reasons",  allow(clippy::pattern_type_mismatch, reason = "Not resolvable"))]
+		#[cfg_attr(not(feature = "reasons"), allow(clippy::pattern_type_mismatch))]
 		VERSION_DATA.iter()
 			.map(|(version, repetitions, data)| {
-				let path     = releases_dir.path().join(&format!("test-{}", version));
+				let path     = releases_dir.path().join(&format!("test-{version}"));
 				let mut file = File::create(&path).unwrap();
 				file.write_all(&data.repeat(*repetitions)).unwrap();
 				(version.clone(), Sha256::digest(data.repeat(*repetitions)).into())
 			})
 			.collect()
 		,
-	).await;
+	);
 	(address, releases_dir)
 }
 
 //		patchify_api_routes														
+/// Creates the Patchify API routes.
 pub fn patchify_api_routes() -> Router {
 	Router::new()
 		.route("/api/ping",              get(get_ping))
@@ -180,6 +209,7 @@ pub fn patchify_api_routes() -> Router {
 }
 
 //		get_ping																
+/// A simple ping route.
 pub async fn get_ping() {}
 
 

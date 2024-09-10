@@ -857,7 +857,9 @@ impl Updater {
 	fn restart(&self) {
 		//	Skip the first argument (current executable name)
 		let args = args().skip(1).collect::<Vec<_>>();
-		let err  = Command::new(self.exe_path.clone())
+		#[cfg_attr(    feature = "reasons",  allow(clippy::needless_borrows_for_generic_args, reason = "False positive"))]
+		#[cfg_attr(not(feature = "reasons"), allow(clippy::needless_borrows_for_generic_args))]
+		let err  = Command::new(&self.exe_path.clone())
 			.args(args)
 			.stdin(Stdio::inherit())
 			.stdout(Stdio::inherit())

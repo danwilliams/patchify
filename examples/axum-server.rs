@@ -1,3 +1,34 @@
+//! An example of a simple Axum server that serves a patchify API.
+
+#![allow(unused_crate_dependencies)]
+
+//	Lints specifically disabled for examples
+#![allow(
+	non_snake_case,
+	unreachable_pub,
+	clippy::cast_lossless,
+	clippy::cast_precision_loss,
+	clippy::cognitive_complexity,
+	clippy::default_numeric_fallback,
+	clippy::exhaustive_enums,
+	clippy::exhaustive_structs,
+	clippy::expect_used,
+	clippy::indexing_slicing,
+	clippy::let_underscore_must_use,
+	clippy::let_underscore_untyped,
+	clippy::missing_assert_message,
+	clippy::missing_panics_doc,
+	clippy::mod_module_files,
+	clippy::must_use_candidate,
+	clippy::panic,
+	clippy::print_stdout,
+	clippy::tests_outside_test_module,
+	clippy::unwrap_in_result,
+	clippy::unwrap_used,
+)]
+
+
+
 //		Modules
 
 #[allow(unused)]
@@ -9,6 +40,7 @@ mod common;
 //		Packages
 
 use common::server::{initialize, create_patchify_api_server, patchify_api_routes};
+use core::net::{IpAddr, SocketAddr};
 use figment::{
 	Figment,
 	providers::{Env, Format, Serialized, Toml},
@@ -19,10 +51,8 @@ use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use std::{
 	collections::HashMap,
-	net::IpAddr,
+	path::PathBuf,
 };
-use std::net::SocketAddr;
-use std::path::PathBuf;
 use tokio::signal;
 
 
@@ -31,7 +61,7 @@ use tokio::signal;
 
 //		Config																	
 /// The main configuration options for the application.
-#[derive(Deserialize, Serialize, SmartDefault)]
+#[derive(Debug, Deserialize, Serialize, SmartDefault)]
 pub struct Config {
 	//		Public properties													
 	/// The name of the application.
@@ -70,12 +100,12 @@ async fn main() {
 		.expect("Error loading config")
 	;
 	let _address = create_patchify_api_server(
-		config.appname,
+		&config.appname,
 		SocketAddr::from((config.host, config.port)),
 		patchify_api_routes(),
 		PathBuf::from(config.releases),
 		config.versions,
-	).await;
+	);
 	signal::ctrl_c().await.unwrap();
 	println!("Shutting down");
 }

@@ -2,15 +2,15 @@
 
 #[cfg(test)]
 #[path = "mocks/reqwest.rs"]
-pub(crate) mod reqwest;
+pub mod reqwest;
 
 #[cfg(test)]
 #[path = "mocks/std_env.rs"]
-pub(crate) mod std_env;
+pub mod std_env;
 
 #[cfg(test)]
 #[path = "mocks/std_process.rs"]
-pub(crate) mod std_process;
+pub mod std_process;
 
 
 
@@ -25,7 +25,7 @@ use mockall::automock;
 
 //§		Subscriber																
 #[automock]
-pub(crate) trait Subscriber {
+pub trait Subscriber {
 	//		update																
 	fn update(&self, status: Status);
 }

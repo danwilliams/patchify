@@ -1,5 +1,31 @@
-#![allow(non_snake_case)]
 #![allow(unused_crate_dependencies)]
+
+//	Lints specifically disabled for integration tests
+#![allow(
+	non_snake_case,
+	unreachable_pub,
+	clippy::cast_lossless,
+	clippy::cast_precision_loss,
+	clippy::cognitive_complexity,
+	clippy::default_numeric_fallback,
+	clippy::exhaustive_enums,
+	clippy::exhaustive_structs,
+	clippy::expect_used,
+	clippy::indexing_slicing,
+	clippy::let_underscore_must_use,
+	clippy::let_underscore_untyped,
+	clippy::missing_assert_message,
+	clippy::missing_panics_doc,
+	clippy::mod_module_files,
+	clippy::must_use_candidate,
+	clippy::panic,
+	clippy::print_stdout,
+	clippy::tests_outside_test_module,
+	clippy::unwrap_in_result,
+	clippy::unwrap_used,
+)]
+
+
 
 //		Modules
 
@@ -11,8 +37,11 @@ mod common;
 //		Packages
 
 use crate::common::{client::request, utils::*};
+use core::{
+	net::SocketAddr,
+	time::Duration,
+};
 use ed25519_dalek::Signer;
-use once_cell::sync::Lazy;
 use patchify::client::{Config, Status, Updater};
 use reqwest::StatusCode;
 use rubedo::{
@@ -26,11 +55,10 @@ use std::{
 	env::current_exe,
 	fs::{File, self},
 	io::{BufReader, BufRead},
-	net::SocketAddr,
+	path::PathBuf,
 	process::{Command, Stdio},
-	time::Duration,
+	sync::LazyLock,
 };
-use std::path::PathBuf;
 use tempfile::tempdir;
 use test_binary::build_test_binary;
 use tokio::time::sleep;
@@ -43,9 +71,9 @@ use wiremock::{
 
 
 
-//		Constants
+//		Statics
 
-const EMPTY_PUBLIC_KEY: Lazy<VerifyingKey> = Lazy::new(|| VerifyingKey::from_bytes([0; 32]));
+static EMPTY_PUBLIC_KEY: LazyLock<VerifyingKey> = LazyLock::new(|| VerifyingKey::from_bytes([0; 32]));
 
 
 
@@ -79,19 +107,17 @@ mod foundation {
 		let mut subproc  = Command::new(testbin_path).stdout(Stdio::piped()).spawn().unwrap();
 		let reader       = BufReader::new(subproc.stdout.take().unwrap());
 		let mut address  = String::new();
-		for line in reader.lines() {
-			let line     = line.unwrap();
+		for l in reader.lines() {
+			let line     = l.unwrap();
 			if line.contains("Listening on") {
-				address  = line.split_whitespace().last().unwrap().to_owned();
+				line.split_whitespace().last().unwrap().clone_into(&mut address);
 				break;
 			}
 		}
-		if address.is_empty() {
-			panic!("Server address not found in stdout");
-		}
-		let address: SocketAddr     = address.parse().unwrap();
+		assert!(!address.is_empty(), "Server address not found in stdout");
+		let addr: SocketAddr        = address.parse().unwrap();
 		let (status, _, _, _, body) = request(
-			format!("http://{address}/api/ping"),
+			format!("http://{addr}/api/ping"),
 			None,
 		).await;
 		assert_eq!(status,        StatusCode::OK);
@@ -270,7 +296,7 @@ mod mock_actions {
 			check_on_startup: true,
 			check_interval:   None,
 		}).unwrap();
-		updater.register_action();
+		let _ = updater.register_action();
 		sleep(Duration::from_millis(100)).await;
 		//	We've registered a critical action, so the installation will be blocked,
 		//	which is what we want here, so that we can check the status is correct
@@ -278,6 +304,8 @@ mod mock_actions {
 		//	Assuming the update process ran correctly, we now need to rename the
 		//	test binary back to its original name, so that the next test can run
 		let path = current_exe().unwrap();
+		#[cfg_attr(    feature = "reasons",  allow(clippy::case_sensitive_file_extension_comparisons, reason = "Desired here"))]
+		#[cfg_attr(not(feature = "reasons"), allow(clippy::case_sensitive_file_extension_comparisons))]
 		if path.file_name().unwrap().to_str().unwrap().ends_with(".old") {
 			fs::rename(path.clone(), path.with_extension("")).unwrap();
 		}
@@ -289,6 +317,8 @@ mod test_actions {
 	use super::*;
 	
 	//		upgrade_app_v1_to_v2												
+	#[cfg_attr(    feature = "reasons",  allow(clippy::too_many_lines, reason = "Acceptable here"))]
+	#[cfg_attr(not(feature = "reasons"), allow(clippy::too_many_lines))]
 	#[tokio::test]
 	async fn upgrade_app_v1_to_v2() {
 		//		Build test binaries												
@@ -297,12 +327,12 @@ mod test_actions {
 		let testapp_v2_path = build_test_binary("e2e-apisrv-srvapp-v2", "testbins").unwrap();
 		//		Copy application binaries to releases directory					
 		let releases_dir = tempdir().unwrap();
-		fs::copy(&testapp_v1_path, releases_dir.path().join("test-1.0.0")).unwrap();
-		fs::copy(&testapp_v2_path, releases_dir.path().join("test-2.0.0")).unwrap();
+		let _ = fs::copy(&testapp_v1_path, releases_dir.path().join("test-1.0.0")).unwrap();
+		let _ = fs::copy(&testapp_v2_path, releases_dir.path().join("test-2.0.0")).unwrap();
 		//		Copy application v1 to execution directory						
 		let exec_dir  = tempdir().unwrap();
 		let exec_path = exec_dir.path().join("testapp");
-		fs::copy(&testapp_v1_path, &exec_path).unwrap();
+		let _ = fs::copy(&testapp_v1_path, &exec_path).unwrap();
 		//		Obtain SHA256 hashes of the release files						
 		let testapp_v1_hash = File::hash::<Sha256Hash>(&PathBuf::from(testapp_v1_path)).unwrap().to_hex();
 		let testapp_v2_hash = File::hash::<Sha256Hash>(&PathBuf::from(testapp_v2_path)).unwrap().to_hex();
@@ -314,32 +344,36 @@ mod test_actions {
 			.stdout(Stdio::piped())
 			.spawn().unwrap()
 		;
-		let reader          = BufReader::new(subproc_srv.stdout.take().unwrap());
-		let mut srv_address = None;
-		let mut public_key  = None;
-		for line in reader.lines() {
-			let line        = line.unwrap();
-			if line.contains("Listening on") {
-				srv_address = Some(line.split_whitespace().last().unwrap().to_owned());
-			} else if line.contains("Public key") {
-				public_key  = Some(line.split_whitespace().last().unwrap().to_owned());
+		let (srv_address, public_key) = {
+			let reader          = BufReader::new(subproc_srv.stdout.take().unwrap());
+			let mut address     = None;
+			let mut public_key  = None;
+			for l in reader.lines() {
+				let line        = l.unwrap();
+				if line.contains("Listening on") {
+					address     = Some(line.split_whitespace().last().unwrap().to_owned());
+				} else if line.contains("Public key") {
+					public_key  = Some(line.split_whitespace().last().unwrap().to_owned());
+				}
+				if address.is_some() && public_key.is_some() {
+					break;
+				}
 			}
-			if srv_address.is_some() && public_key.is_some() {
-				break;
-			}
-		}
-		if srv_address.is_none() {
-			panic!("Server address not found in stdout from main API serverr");
-		}
-		let srv_address: SocketAddr = srv_address.unwrap().parse().unwrap();
-		let public_key = VerifyingKey::from_hex(&public_key.unwrap()).unwrap();
+			assert!(address.is_some(), "Server address not found in stdout from main API serverr");
+			(
+				address.unwrap().parse::<SocketAddr>().unwrap(),
+				VerifyingKey::from_hex(&public_key.unwrap()).unwrap(),
+			)
+		};
 		//		Ping main API server											
-		let (status, _, _, _, body) = request(
-			format!("http://{srv_address}/api/ping"),
-			None,
-		).await;
-		assert_eq!(status,        StatusCode::OK);
-		assert_eq!(body.as_ref(), b"");
+		{
+			let (status, _, _, _, body) = request(
+				format!("http://{srv_address}/api/ping"),
+				None,
+			).await;
+			assert_eq!(status,        StatusCode::OK);
+			assert_eq!(body.as_ref(), b"");
+		}
 		//		Start app API server v1											
 		let mut subproc_app = Command::new(exec_path)
 			.env("API_PORT",   srv_address.port().to_string())
@@ -347,68 +381,72 @@ mod test_actions {
 			.stdout(Stdio::piped())
 			.spawn().unwrap()
 		;
-		let mut reader      = BufReader::new(subproc_app.stdout.take().unwrap());
-		let mut app_address = String::new();
-		loop {
-			let mut line = String::new();
-			let count    = reader.read_line(&mut line).unwrap();
-			if count == 0 {
-				break;
+		let mut reader = BufReader::new(subproc_app.stdout.take().unwrap());
+		let app1_address: SocketAddr = {
+			let mut address = String::new();
+			loop {
+				let mut line = String::new();
+				let count    = reader.read_line(&mut line).unwrap();
+				if count == 0 {
+					break;
+				}
+				if line.contains("Listening on") {
+					line.split_whitespace().last().unwrap().clone_into(&mut address);
+					break;
+				}
 			}
-			if line.contains("Listening on") {
-				app_address = line.split_whitespace().last().unwrap().to_owned();
-				break;
-			}
-		}
-		if app_address.is_empty() {
-			panic!("Server address not found in stdout from app API server");
-		}
-		let app_address: SocketAddr = app_address.parse().unwrap();
+			assert!(!address.is_empty(), "Server address not found in stdout from app API server");
+			address
+		}.parse().unwrap();
 		//		Ping app API server												
-		let (status, _, _, _, body) = request(
-			format!("http://{app_address}/api/ping"),
-			None,
-		).await;
-		assert_eq!(status,        StatusCode::OK);
-		assert_eq!(body.as_ref(), b"");
+		{
+			let (status, _, _, _, body) = request(
+				format!("http://{app1_address}/api/ping"),
+				None,
+			).await;
+			assert_eq!(status,        StatusCode::OK);
+			assert_eq!(body.as_ref(), b"");
+		}
 		//		Check app API server version									
-		let (status, _, _, _, body) = request(
-			format!("http://{app_address}/api/version"),
-			None,
-		).await;
-		assert_eq!(status,        StatusCode::OK);
-		assert_eq!(body.as_ref(), b"1.0.0");
+		{
+			let (status, _, _, _, body) = request(
+				format!("http://{app1_address}/api/version"),
+				None,
+			).await;
+			assert_eq!(status,        StatusCode::OK);
+			assert_eq!(body.as_ref(), b"1.0.0");
+		}
 		//		Wait for app API server to restart								
-		//	This part of the tests is a little hinky. Perhaps there is a better way
-		//	to do it... at present the API server spins up, and then we start the
-		//	client app (which is also an API server in this test scenario). The app
-		//	is set to check for updates on startup, but our initial check above for
-		//	v1 should always complete more quickly than the process of checking,
-		//	downloading, verifying, installing, and restarting. After the initial
-		//	check, we listen to the messages emitted until we encounter another
-		//	"Listening on" message, which tells us a) that the application has
-		//	restarted, and b) what port it is now using (as that is random every
-		//	time). However, if something goes wrong then this test could hang, which
-		//	is not ideal.
-		let mut app_address = String::new();
-		loop {
-			let mut line = String::new();
-			let count    = reader.read_line(&mut line).unwrap();
-			if count == 0 {
-				break;
+		let app2_address: SocketAddr = {
+			//	This part of the tests is a little hinky. Perhaps there is a better way
+			//	to do it... at present the API server spins up, and then we start the
+			//	client app (which is also an API server in this test scenario). The app
+			//	is set to check for updates on startup, but our initial check above for
+			//	v1 should always complete more quickly than the process of checking,
+			//	downloading, verifying, installing, and restarting. After the initial
+			//	check, we listen to the messages emitted until we encounter another
+			//	"Listening on" message, which tells us a) that the application has
+			//	restarted, and b) what port it is now using (as that is random every
+			//	time). However, if something goes wrong then this test could hang, which
+			//	is not ideal.
+			let mut address = String::new();
+			loop {
+				let mut line = String::new();
+				let count    = reader.read_line(&mut line).unwrap();
+				if count == 0 {
+					break;
+				}
+				if line.contains("Listening on") {
+					line.split_whitespace().last().unwrap().clone_into(&mut address);
+					break;
+				}
 			}
-			if line.contains("Listening on") {
-				app_address = line.split_whitespace().last().unwrap().to_owned();
-				break;
-			}
-		}
-		if app_address.is_empty() {
-			panic!("Server address not found in stdout from app API server");
-		}
-		let app_address: SocketAddr = app_address.parse().unwrap();
+			assert!(!address.is_empty(), "Server address not found in stdout from app API server");
+			address
+		}.parse().unwrap();
 		//		Check app API server version again once restarted				
 		let (status, _, _, _, body) = request(
-			format!("http://{app_address}/api/version"),
+			format!("http://{app2_address}/api/version"),
 			None,
 		).await;
 		assert_eq!(status,        StatusCode::OK);

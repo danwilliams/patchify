@@ -1,5 +1,36 @@
+//! An example of a simple CLI application, representing version 2.
+
+#![allow(unused_crate_dependencies)]
+
+//	Lints specifically disabled for examples
+#![allow(
+	non_snake_case,
+	unreachable_pub,
+	clippy::cast_lossless,
+	clippy::cast_precision_loss,
+	clippy::cognitive_complexity,
+	clippy::default_numeric_fallback,
+	clippy::exhaustive_enums,
+	clippy::exhaustive_structs,
+	clippy::expect_used,
+	clippy::indexing_slicing,
+	clippy::let_underscore_must_use,
+	clippy::let_underscore_untyped,
+	clippy::missing_assert_message,
+	clippy::missing_panics_doc,
+	clippy::must_use_candidate,
+	clippy::panic,
+	clippy::print_stdout,
+	clippy::tests_outside_test_module,
+	clippy::unwrap_in_result,
+	clippy::unwrap_used,
+)]
+
+
+
 //		Packages
 
+use core::time::Duration;
 use figment::{
 	Figment,
 	providers::{Env, Format, Serialized, Toml},
@@ -9,10 +40,7 @@ use rubedo::crypto::VerifyingKey;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
-use std::{
-	io::stdout,
-	time::Duration,
-};
+use std::io::stdout;
 use tokio::signal;
 use tracing::{Level, info};
 use tracing_subscriber::{
@@ -29,7 +57,7 @@ use tracing_subscriber::{
 
 //		Config																	
 /// The main configuration options for the application.
-#[derive(Deserialize, Serialize, SmartDefault)]
+#[derive(Debug, Deserialize, Serialize, SmartDefault)]
 pub struct Config {
 	//		Public properties													
 	/// The name of the application.
@@ -84,7 +112,7 @@ async fn main() {
 		api:              config.updater_api_server.parse().expect("Invalid updater API server URL"),
 		key:              config.updater_api_key,
 		check_on_startup: config.update_on_startup,
-		check_interval:   config.update_interval.map(|secs| Duration::from_secs(secs)),
+		check_interval:   config.update_interval.map(Duration::from_secs),
 	}).unwrap();
 	info!("Application started");
 	info!("{} v{app_version}", config.appname);
