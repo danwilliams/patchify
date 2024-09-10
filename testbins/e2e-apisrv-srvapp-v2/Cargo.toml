@@ -1,25 +1,25 @@
 [workspace]
 
 [package]
-name = "e2e-apisrv-srvapp-v2"
+name    = "e2e-apisrv-srvapp-v2"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-axum = "0.6.20"
-bytes = "1.5.0"
-ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
-hex = "0.4.3"
-patchify = { path = "../.." }
-rand = "0.8.5"
-reqwest = "0.11.24"
-rubedo = "0.5.1"
-semver = { version = "1.0.22", features = ["serde"] }
-serde = { version = "1.0.197", features = ["derive"] }
-sha2 = "0.10.8"
-tempfile = "3.10.1"
-tokio = { version = "1.36.0", features = ["fs", "io-std", "io-util", "macros", "rt-multi-thread", "signal"] }
-tower-http = { version = "0.4.4", features = ["trace"] }
-tracing = "0.1.40"
+axum               = "0.6.20"
+bytes              = "1.5.0"
+ed25519-dalek      = { version = "2.1.1", features = ["rand_core"] }
+hex                = "0.4.3"
+patchify           = { path = "../.." }
+rand               = "0.8.5"
+reqwest            = "0.11.24"
+rubedo             = "0.5.1"
+semver             = { version = "1.0.22", features = ["serde"] }
+serde              = { version = "1.0.197", features = ["derive"] }
+sha2               = "0.10.8"
+tempfile           = "3.10.1"
+tokio              = { version = "1.36.0", features = ["fs", "io-std", "io-util", "macros", "rt-multi-thread", "signal"] }
+tower-http         = { version = "0.4.4", features = ["trace"] }
+tracing            = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

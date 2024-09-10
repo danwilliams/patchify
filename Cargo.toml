@@ -1,21 +1,21 @@
 [package]
-name = "patchify"
-version = "0.1.1"
-description = "Support for running applications to automatically update themselves"
-categories = ["config", "filesystem"]
-keywords = ["auto-update", "library", "updater"]
-edition = "2021"
-license = "MIT"
-authors = ["Dan Williams <dan@dotfive.co.uk>"]
-repository = "https://github.com/danwilliams/patchify"
-readme = "README.md"
+name         = "patchify"
+version      = "0.1.1"
+description  = "Support for running applications to automatically update themselves"
+categories   = ["config", "filesystem"]
+keywords     = ["auto-update", "library", "updater"]
+edition      = "2021"
+license      = "MIT"
+authors      = ["Dan Williams <dan@dotfive.co.uk>"]
+repository   = "https://github.com/danwilliams/patchify"
+readme       = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [profile.release]
-strip = true     # Automatically strip symbols from the binary
-opt-level = 3    # Maximum optimisation (this is the cargo default)
-lto = "thin"     # Enable link-time optimisation (fast)
+strip     = true   # Automatically strip symbols from the binary
+opt-level = 3      # Maximum optimisation (this is the cargo default)
+lto       = "thin" # Enable link-time optimisation (fast)
 
 [features]
 reasons = []
@@ -23,37 +23,37 @@ reasons = []
 #==============================[  DEPENDENCIES  ]===============================
 
 [dependencies]
-axum = "0.6.20"
-ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
-flume = { version = "0.11.0", features = ["async"] }
-futures-util = "0.3.30"
-hex = "0.4.3"
-parking_lot = "0.12.1"
-reqwest = { version = "0.12.2", features = ["stream"] }
-rubedo = "0.5.2"
-semver = { version = "1.0.22", features = ["serde"] }
-serde = { version = "1.0.197", features = ["derive"] }
-serde_json = { version = "1.0.115", features = ["preserve_order"] }
-sha2 = "0.10.8"
-tempfile = "3.10.1"
-tokio = { version = "1.37.0", features = ["fs", "io-std", "io-util", "macros", "rt-multi-thread"] }
-tokio-util = { version = "0.7.10", features = ["io", "io-util"] }
-tracing = "0.1.40"
+axum               = "0.6.20"
+ed25519-dalek      = { version = "2.1.1", features = ["rand_core"] }
+flume              = { version = "0.11.0", features = ["async"] }
+futures-util       = "0.3.30"
+hex                = "0.4.3"
+parking_lot        = "0.12.1"
+reqwest            = { version = "0.12.2", features = ["stream"] }
+rubedo             = "0.5.2"
+semver             = { version = "1.0.22", features = ["serde"] }
+serde              = { version = "1.0.197", features = ["derive"] }
+serde_json         = { version = "1.0.115", features = ["preserve_order"] }
+sha2               = "0.10.8"
+tempfile           = "3.10.1"
+tokio              = { version = "1.37.0", features = ["fs", "io-std", "io-util", "macros", "rt-multi-thread"] }
+tokio-util         = { version = "0.7.10", features = ["io", "io-util"] }
+tracing            = "0.1.40"
 
 [dev-dependencies]
-assert-json-diff = "2.0.2"
-bytes = "1.6.0"
-claims = "0.7.1"
-figment = { version = "0.10.15", features = ["toml", "env"] }
-mockall = "0.12.1"
-rand = "0.8.5"
-smart-default = "0.7.1"
-test-binary = "3.0.2"
-tokio = { version = "1.37.0", features = ["signal"] }
-tower-http = { version = "0.4.4", features = ["trace"] }
+assert-json-diff   = "2.0.2"
+bytes              = "1.6.0"
+claims             = "0.7.1"
+figment            = { version = "0.10.15", features = ["toml", "env"] }
+mockall            = "0.12.1"
+rand               = "0.8.5"
+smart-default      = "0.7.1"
+test-binary        = "3.0.2"
+tokio              = { version = "1.37.0", features = ["signal"] }
+tower-http         = { version = "0.4.4", features = ["trace"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-velcro = "0.5.4"
-wiremock = "0.6.0"
+velcro             = "0.5.4"
+wiremock           = "0.6.0"
 
 #=================================[  LINTS  ]===================================
 
