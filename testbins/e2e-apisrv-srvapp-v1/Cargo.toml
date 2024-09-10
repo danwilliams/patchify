@@ -7,20 +7,20 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-axum               = "0.6.20"
-bytes              = "1.5.0"
+axum               = "0.7.5"
+bytes              = "1.7.1"
 ed25519-dalek      = { version = "2.1.1", features = ["rand_core"] }
-figment            = { version = "0.10.14", features = ["toml", "env"] }
+figment            = { version = "0.10.19", features = ["toml", "env"] }
 hex                = "0.4.3"
 patchify           = { path = "../.." }
 rand               = "0.8.5"
-reqwest            = "0.11.24"
-rubedo             = "0.5.1"
-semver             = { version = "1.0.22", features = ["serde"] }
-serde              = { version = "1.0.197", features = ["derive"] }
+reqwest            = "0.12.7"
+rubedo             = "0.6.1"
+semver             = { version = "1.0.23", features = ["serde"] }
+serde              = { version = "1.0.210", features = ["derive"] }
 sha2               = "0.10.8"
-tempfile           = "3.10.1"
-tokio              = { version = "1.36.0", features = ["fs", "io-std", "io-util", "macros", "rt-multi-thread", "signal"] }
-tower-http         = { version = "0.4.4", features = ["trace"] }
+tempfile           = "3.12.0"
+tokio              = { version = "1.40.0", features = ["fs", "io-std", "io-util", "macros", "rt-multi-thread", "signal"] }
+tower-http         = { version = "0.5.2", features = ["trace"] }
 tracing            = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

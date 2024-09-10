@@ -483,7 +483,7 @@ impl Axum {
 		let body = if metadata.len() > core.config.stream_threshold.saturating_mul(1024) {
 			let reader = BufReader::with_capacity(core.config.read_buffer.saturating_mul(1024), file);
 			let stream = ReaderStream::with_capacity(reader, core.config.stream_buffer.saturating_mul(1024));
-			Body::wrap_stream(stream)
+			Body::from_stream(stream)
 		} else {
 			let mut contents = vec![];
 			match file.read_to_end(&mut contents).await {

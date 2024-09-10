@@ -6,7 +6,6 @@ use crate::common::utils::generate_new_private_key;
 use axum::{
 	Extension,
 	Router,
-	Server,
 	http::HeaderMap,
 	routing::get,
 };
@@ -34,6 +33,7 @@ use std::{
 	sync::{Arc, Once, OnceLock},
 };
 use tempfile::{tempdir, TempDir};
+use tokio::net::TcpListener;
 use tokio::spawn;
 use tower_http::{
 	LatencyUnit,
@@ -104,7 +104,7 @@ pub fn initialize() {
 /// * `address` - The address to bind the server to.
 /// * `routes`  - The routes to use for the server.
 /// 
-pub fn create_basic_server(
+pub async fn create_basic_server(
 	address: SocketAddr,
 	routes:  Router,
 ) -> SocketAddr {
@@ -130,9 +130,9 @@ pub fn create_basic_server(
 			})
 		)
 	;
-	let server            = Server::bind(&address).serve(app.into_make_service());
-	let allocated_address = server.local_addr();
-	drop(spawn(server));
+	let listener          = TcpListener::bind(address).await.expect("Failed to bind to address");
+	let allocated_address = listener.local_addr().expect("Failed to get local address");
+	drop(spawn(async move { axum::serve(listener, app).await.expect("Failed to serve") }));
 	allocated_address
 }
 
@@ -147,7 +147,7 @@ pub fn create_basic_server(
 /// * `releases` - The path to the releases directory.
 /// * `versions` - A map of versions to their SHA-256 hashes.
 /// 
-pub fn create_patchify_api_server(
+pub async fn create_patchify_api_server(
 	appname:  &str,
 	address:  SocketAddr,
 	routes:   Router,
@@ -167,7 +167,7 @@ pub fn create_patchify_api_server(
 	let allocated_address = create_basic_server(
 		address,
 		routes.layer(Extension(Arc::new(patchify))),
-	);
+	).await;
 	println!("Listening on: {allocated_address}");
 	println!("App name:     {appname}");
 	println!("Public key:   {}", KEY.get().unwrap().verifying_key().to_hex());
@@ -176,7 +176,7 @@ pub fn create_patchify_api_server(
 
 //		create_test_server														
 /// Creates a test server with the provided versions.
-pub fn create_test_server() -> (SocketAddr, TempDir) {
+pub async fn create_test_server() -> (SocketAddr, TempDir) {
 	let releases_dir = tempdir().unwrap();
 	let address      = create_patchify_api_server(
 		"test",
@@ -193,7 +193,7 @@ pub fn create_test_server() -> (SocketAddr, TempDir) {
 			})
 			.collect()
 		,
-	);
+	).await;
 	(address, releases_dir)
 }
 

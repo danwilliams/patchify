@@ -48,7 +48,7 @@ use tokio::signal;
 #[tokio::main]
 async fn main() {
 	initialize();
-	let (_address, _temp_dir) = create_test_server();
+	let (_address, _temp_dir) = create_test_server().await;
 	signal::ctrl_c().await.unwrap();
 	println!("Shutting down");
 }

@@ -63,7 +63,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_ping() {
 		initialize();
-		let (address, _releases_dir) = create_test_server();
+		let (address, _releases_dir) = create_test_server().await;
 		let (status, _, _, _, body) = request(
 			format!("http://{address}/api/ping"),
 			None,
@@ -76,7 +76,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_latest() {
 		initialize();
-		let (address, _releases_dir) = create_test_server();
+		let (address, _releases_dir) = create_test_server().await;
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/latest"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -95,7 +95,7 @@ mod endpoints {
 	async fn get_latest__fail_signature_verification() {
 		initialize();
 		let other_public_key   = generate_new_private_key().verifying_key();
-		let (address, _releases_dir) = create_test_server();
+		let (address, _releases_dir) = create_test_server().await;
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/latest"),
 			Some(other_public_key),
@@ -115,7 +115,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_hashes_version() {
 		initialize();
-		let (address, _releases_dir) = create_test_server();
+		let (address, _releases_dir) = create_test_server().await;
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/hashes/0.2.0"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -134,7 +134,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_hashes_version__not_found() {
 		initialize();
-		let (address, _releases_dir) = create_test_server();
+		let (address, _releases_dir) = create_test_server().await;
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/hashes/3.2.1"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -148,7 +148,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_hashes_version__invalid() {
 		initialize();
-		let (address, _releases_dir) = create_test_server();
+		let (address, _releases_dir) = create_test_server().await;
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/hashes/invalid"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -164,7 +164,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_releases_version() {
 		initialize();
-		let (address, _releases_dir) = create_test_server();
+		let (address, _releases_dir) = create_test_server().await;
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/releases/1.0.0"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -178,7 +178,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_releases_version__medium_binary() {
 		initialize();
-		let (address, _releases_dir) = create_test_server();
+		let (address, _releases_dir) = create_test_server().await;
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/releases/1.1.0"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -192,7 +192,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_releases_version__large_binary() {
 		initialize();
-		let (address, _releases_dir) = create_test_server();
+		let (address, _releases_dir) = create_test_server().await;
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/releases/0.2.0"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -206,7 +206,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_releases_version__not_found() {
 		initialize();
-		let (address, _releases_dir) = create_test_server();
+		let (address, _releases_dir) = create_test_server().await;
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/releases/4.5.6"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -220,7 +220,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_releases_version__invalid() {
 		initialize();
-		let (address, _releases_dir) = create_test_server();
+		let (address, _releases_dir) = create_test_server().await;
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/releases/invalid"),
 			Some(KEY.get().unwrap().verifying_key()),
@@ -234,7 +234,7 @@ mod endpoints {
 	#[tokio::test]
 	async fn get_releases_version__missing() {
 		initialize();
-		let (address, releases_dir) = create_test_server();
+		let (address, releases_dir) = create_test_server().await;
 		fs::remove_file(releases_dir.path().join("test-1.0.0")).unwrap();
 		let (status, content_type, content_len, verified, body) = request(
 			format!("http://{address}/api/releases/1.0.0"),
@@ -256,7 +256,7 @@ mod scenarios {
 	#[tokio::test]
 	async fn download_and_verify_latest_release() {
 		initialize();
-		let (address, _releases_dir) = create_test_server();
+		let (address, _releases_dir) = create_test_server().await;
 		let public_key = Some(KEY.get().unwrap().verifying_key());
 		
 		//		Get latest version												
@@ -308,7 +308,7 @@ mod scenarios {
 	#[tokio::test]
 	async fn download_and_verify_release_with_hash_fail() {
 		initialize();
-		let (address, releases_dir) = create_test_server();
+		let (address, releases_dir) = create_test_server().await;
 		let public_key = Some(KEY.get().unwrap().verifying_key());
 		let wanted     = Version::new(1, 0, 0);
 		let mut file   = File::create(releases_dir.path().join("test-1.0.0")).unwrap();
