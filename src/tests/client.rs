@@ -1,5 +1,4 @@
-#![cfg_attr(    feature = "reasons",  allow(clippy::bool_assert_comparison, reason = "Clarity"))]
-#![cfg_attr(not(feature = "reasons"), allow(clippy::bool_assert_comparison))]
+#![allow(clippy::bool_assert_comparison, reason = "Clarity")]
 
 //		Packages
 
@@ -351,8 +350,7 @@ mod updater_public {
 		);
 		let (sender, receiver) = flume::unbounded();
 		let mut rx = updater.subscribe();
-		#[cfg_attr(    feature = "reasons",  allow(clippy::pattern_type_mismatch, reason = "Tokio code"))]
-		#[cfg_attr(not(feature = "reasons"), allow(clippy::pattern_type_mismatch))]
+		#[expect(clippy::pattern_type_mismatch, reason = "Tokio code")]
 		let thread = spawn(async move { select! {
 			Ok(status) = rx.recv()             => mock_subscriber.update(status),
 			_          = receiver.recv_async() => {},
@@ -378,8 +376,7 @@ mod updater_public {
 		);
 		let (sender, receiver) = flume::unbounded();
 		let mut rx = updater.subscribe();
-		#[cfg_attr(    feature = "reasons",  allow(clippy::pattern_type_mismatch, reason = "Tokio code"))]
-		#[cfg_attr(not(feature = "reasons"), allow(clippy::pattern_type_mismatch))]
+		#[expect(clippy::pattern_type_mismatch, reason = "Tokio code")]
 		let thread = spawn(async move { select! {
 			Ok(status) = rx.recv()             => mock_subscriber.update(status),
 			_          = receiver.recv_async() => {}

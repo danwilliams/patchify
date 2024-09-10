@@ -183,11 +183,10 @@ pub fn create_test_server() -> (SocketAddr, TempDir) {
 		SocketAddr::from((IpAddr::from([127, 0, 0, 1]), 0)),
 		patchify_api_routes(),
 		releases_dir.path().to_path_buf(),
-		#[cfg_attr(    feature = "reasons",  allow(clippy::pattern_type_mismatch, reason = "Not resolvable"))]
-		#[cfg_attr(not(feature = "reasons"), allow(clippy::pattern_type_mismatch))]
+		#[expect(clippy::pattern_type_mismatch, reason = "Not resolvable")]
 		VERSION_DATA.iter()
 			.map(|(version, repetitions, data)| {
-				let path     = releases_dir.path().join(&format!("test-{version}"));
+				let path     = releases_dir.path().join(format!("test-{version}"));
 				let mut file = File::create(&path).unwrap();
 				file.write_all(&data.repeat(*repetitions)).unwrap();
 				(version.clone(), Sha256::digest(data.repeat(*repetitions)).into())

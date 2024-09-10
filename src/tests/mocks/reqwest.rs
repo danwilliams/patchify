@@ -42,7 +42,7 @@ use std::sync::Arc;
 //		Enums
 
 //		ResponseSignature														
-#[allow(variant_size_differences)]
+#[expect(variant_size_differences, reason = "Doesn't matter here")]
 pub enum ResponseSignature {
 	Generate,
 	GenerateUsing(SigningKey),
@@ -94,10 +94,8 @@ pub struct MockResponse {
 }
 
 //󰭅		MockResponse															
-#[cfg_attr(    feature = "reasons",  allow(clippy::missing_const_for_fn, reason = "Needed for mock"))]
-#[cfg_attr(not(feature = "reasons"), allow(clippy::missing_const_for_fn))]
-#[cfg_attr(    feature = "reasons",  allow(clippy::unused_async, reason = "Needed for mock"))]
-#[cfg_attr(not(feature = "reasons"), allow(clippy::unused_async))]
+#[expect(clippy::missing_const_for_fn, reason = "Needed for mock")]
+#[expect(clippy::unused_async,         reason = "Also needed for mock")]
 impl MockResponse {
 	//		bytes																
 	pub async fn bytes(&self) -> Result<Arc<Bytes>, MockError> {
@@ -106,8 +104,7 @@ impl MockResponse {
 	
 	//		bytes_stream														
 	pub fn bytes_stream(&self) -> Pin<Box<dyn Stream<Item = Result<Bytes, MockError>> + Send>> {
-		#[cfg_attr(    feature = "reasons",  allow(clippy::pattern_type_mismatch, reason = "Not resolvable"))]
-		#[cfg_attr(not(feature = "reasons"), allow(clippy::pattern_type_mismatch))]
+		#[expect(clippy::pattern_type_mismatch, reason = "Not resolvable")]
 		match &self.body {
 			Ok(ref bytes) => {
 				let cloned_bytes = Arc::clone(bytes);

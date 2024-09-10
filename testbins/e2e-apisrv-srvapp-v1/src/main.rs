@@ -1,4 +1,4 @@
-#![allow(unused_crate_dependencies)]
+#![allow(unused_crate_dependencies, reason = "Creates a lot of noise")]
 
 //	Lints specifically disabled for tests
 #![allow(
@@ -22,13 +22,14 @@
 	clippy::tests_outside_test_module,
 	clippy::unwrap_in_result,
 	clippy::unwrap_used,
+	reason = "Not useful in tests"
 )]
 
 
 
 //		Modules
 
-#[allow(unused)]
+#[expect(unused)]
 #[path = "../../../tests/common/mod.rs"]
 mod common;
 

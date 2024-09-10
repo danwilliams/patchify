@@ -36,8 +36,7 @@ pub static MOCK_EXE: ReentrantMutex<RefCell<Option<PathBuf>>> = ReentrantMutex::
 //		Functions
 
 //		mock_current_exe														
-#[cfg_attr(    feature = "reasons",  allow(clippy::unnecessary_wraps, reason = "Needed for mock"))]
-#[cfg_attr(not(feature = "reasons"), allow(clippy::unnecessary_wraps))]
+#[expect(clippy::unnecessary_wraps, reason = "Needed for mock")]
 pub fn mock_current_exe() -> IoResult<PathBuf> {
 	Ok(MOCK_EXE.lock().borrow().as_ref().expect("Needs initialisation").clone())
 }

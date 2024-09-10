@@ -112,8 +112,7 @@ impl FakeCommand {
 	}
 	
 	//		exec																
-	#[cfg_attr(    feature = "reasons",  allow(clippy::needless_pass_by_ref_mut, reason = "Needed for mock"))]
-	#[cfg_attr(not(feature = "reasons"), allow(clippy::needless_pass_by_ref_mut))]
+	#[expect(clippy::needless_pass_by_ref_mut, reason = "Needed for mock")]
 	pub fn exec(&mut self) -> IoError {
 		self.command.exec()
 	}
@@ -142,8 +141,7 @@ impl FakeCommand {
 pub struct MockStdio;
 
 //󰭅		MockStdio																
-#[cfg_attr(    feature = "reasons",  allow(clippy::missing_const_for_fn, reason = "Needed for mock"))]
-#[cfg_attr(not(feature = "reasons"), allow(clippy::missing_const_for_fn))]
+#[expect(clippy::missing_const_for_fn, reason = "Needed for mock")]
 impl MockStdio {
 	//		inherit																
 	pub fn inherit() -> Self {
@@ -156,8 +154,7 @@ impl MockStdio {
 //		Functions
 
 //		mock_exit																
-#[cfg_attr(    feature = "reasons",  allow(clippy::missing_const_for_fn, reason = "Needed for mock"))]
-#[cfg_attr(not(feature = "reasons"), allow(clippy::missing_const_for_fn))]
+#[expect(clippy::missing_const_for_fn, reason = "Needed for mock")]
 pub fn mock_exit(_code: i32) {}
 
 

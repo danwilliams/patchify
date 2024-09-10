@@ -41,6 +41,7 @@ mod tests;
 
 use crate::responses::{LatestVersionResponse, VersionHashResponse};
 use core::{
+	error::Error,
 	fmt::{Display, self},
 	str::FromStr,
 	sync::atomic::{AtomicUsize, Ordering},
@@ -64,7 +65,6 @@ use serde::de::DeserializeOwned;
 use sha2::{Sha256, Digest};
 use std::{
 	env::args,
-	error::Error,
 	io::Error as IoError,
 	os::unix::fs::PermissionsExt,
 	path::PathBuf,
@@ -266,8 +266,7 @@ impl Error for UpdaterError {}
 
 //		Config																	
 /// The configuration options for the client.
-#[cfg_attr(    feature = "reasons",  allow(clippy::exhaustive_structs, reason = "Provided for configuration"))]
-#[cfg_attr(not(feature = "reasons"), allow(clippy::exhaustive_structs))]
+#[expect(clippy::exhaustive_structs, reason = "Provided for configuration")]
 #[derive(Clone, Debug)]
 pub struct Config {
 	//		Public properties													
@@ -357,8 +356,7 @@ impl Updater {
 	/// 
 	/// * [`UpdaterError::UnableToObtainCurrentExePath`]
 	/// 
-	#[cfg_attr(    feature = "reasons",  allow(clippy::result_large_err, reason = "Doesn't matter here"))]
-	#[cfg_attr(not(feature = "reasons"), allow(clippy::result_large_err))]
+	#[expect(clippy::result_large_err, reason = "Doesn't matter here")]
 	pub fn new(config: Config) -> Result<Arc<Self>, UpdaterError> {
 		//		Set up updater instance											
 		let http_client        = Client::new();
@@ -377,8 +375,7 @@ impl Updater {
 		//	It's useful to listen for status changes, so that they can be logged.
 		//	However, a persistent subscriber is also necessary to keep the broadcast
 		//	channel open, as it will be closed when the last subscriber is dropped.
-		#[cfg_attr(    feature = "reasons",  allow(clippy::pattern_type_mismatch, reason = "Cannot dereference here"))]
-		#[cfg_attr(not(feature = "reasons"), allow(clippy::pattern_type_mismatch))]
+		#[expect(clippy::pattern_type_mismatch, reason = "Cannot dereference here")]
 		drop(spawn(async move { loop { select! {
 			//	Wait for data from the broadcast channel
 			Ok(status) = rx.recv() => {
@@ -657,12 +654,9 @@ impl Updater {
 			)?;
 			hasher.update(&chunk);
 			body_len = body_len.saturating_add(chunk.len());
-			#[cfg_attr(    feature = "reasons",  allow(clippy::cast_possible_truncation, reason = "Loss of precision is not important here"))]
-			#[cfg_attr(not(feature = "reasons"), allow(clippy::cast_possible_truncation))]
-			#[cfg_attr(    feature = "reasons",  allow(clippy::cast_precision_loss, reason = "Loss of precision is not important here"))]
-			#[cfg_attr(not(feature = "reasons"), allow(clippy::cast_precision_loss))]
-			#[cfg_attr(    feature = "reasons",  allow(clippy::cast_sign_loss, reason = "Loss of sign is not important here"))]
-			#[cfg_attr(not(feature = "reasons"), allow(clippy::cast_sign_loss))]
+			#[expect(clippy::cast_possible_truncation, reason = "Loss of precision is not important here")]
+			#[expect(clippy::cast_precision_loss,      reason = "Loss of precision is not important here")]
+			#[expect(clippy::cast_sign_loss,           reason = "Loss of sign is not important here")]
 			self.set_status(Status::Downloading(version.clone(), (body_len as f64 / content_length as f64 * 100.0) as u8));
 		}
 		//		Check content length											
@@ -854,11 +848,11 @@ impl Updater {
 	/// option. This behaviour will be considered carefully and improved in
 	/// future when it becomes clearer how to handle it.
 	/// 
+	#[expect(clippy::allow_attributes, reason = "Needed due to false positive")]
 	fn restart(&self) {
 		//	Skip the first argument (current executable name)
 		let args = args().skip(1).collect::<Vec<_>>();
-		#[cfg_attr(    feature = "reasons",  allow(clippy::needless_borrows_for_generic_args, reason = "False positive"))]
-		#[cfg_attr(not(feature = "reasons"), allow(clippy::needless_borrows_for_generic_args))]
+		#[allow(clippy::needless_borrows_for_generic_args, reason = "False positive")]
 		let err  = Command::new(&self.exe_path.clone())
 			.args(args)
 			.stdin(Stdio::inherit())

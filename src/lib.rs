@@ -6,13 +6,9 @@
 
 //		Global configuration
 
-#![cfg_attr(feature = "reasons", feature(lint_reasons))]
-
 //	Customisations of the standard linting configuration
-#![cfg_attr(    feature = "reasons",  allow(clippy::multiple_crate_versions, reason = "Cannot resolve all these"))]
-#![cfg_attr(not(feature = "reasons"), allow(clippy::multiple_crate_versions))]
-#![cfg_attr(    feature = "reasons",  allow(clippy::items_after_test_module, reason = "Not needed with separated tests"))]
-#![cfg_attr(not(feature = "reasons"), allow(clippy::items_after_test_module))]
+#![allow(clippy::multiple_crate_versions, reason = "Cannot resolve all these")]
+#![allow(clippy::items_after_test_module, reason = "Not needed with separated tests")]
 
 //	Lints specifically disabled for unit tests
 #![cfg_attr(test, allow(
@@ -35,6 +31,7 @@
 	clippy::print_stdout,
 	clippy::unwrap_in_result,
 	clippy::unwrap_used,
+	reason = "Not useful in unit tests"
 ))]
 
 

@@ -1,6 +1,6 @@
 //! An example of a simple Axum server that serves a patchify API.
 
-#![allow(unused_crate_dependencies)]
+#![allow(unused_crate_dependencies, reason = "Creates a lot of noise")]
 
 //	Lints specifically disabled for examples
 #![allow(
@@ -25,13 +25,14 @@
 	clippy::tests_outside_test_module,
 	clippy::unwrap_in_result,
 	clippy::unwrap_used,
+	reason = "Not useful in examples"
 )]
 
 
 
 //		Modules
 
-#[allow(unused)]
+#[expect(unused, reason = "Shared test code")]
 #[path = "../tests/common/mod.rs"]
 mod common;
 

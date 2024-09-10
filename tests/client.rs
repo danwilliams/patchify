@@ -1,4 +1,4 @@
-#![allow(unused_crate_dependencies)]
+#![allow(unused_crate_dependencies, reason = "Creates a lot of noise")]
 
 //	Lints specifically disabled for integration tests
 #![allow(
@@ -23,13 +23,14 @@
 	clippy::tests_outside_test_module,
 	clippy::unwrap_in_result,
 	clippy::unwrap_used,
+	reason = "Not useful in tests"
 )]
 
 
 
 //		Modules
 
-#[allow(unused)]
+#[expect(unused, reason = "Shared test code")]
 mod common;
 
 
@@ -304,8 +305,7 @@ mod mock_actions {
 		//	Assuming the update process ran correctly, we now need to rename the
 		//	test binary back to its original name, so that the next test can run
 		let path = current_exe().unwrap();
-		#[cfg_attr(    feature = "reasons",  allow(clippy::case_sensitive_file_extension_comparisons, reason = "Desired here"))]
-		#[cfg_attr(not(feature = "reasons"), allow(clippy::case_sensitive_file_extension_comparisons))]
+		#[expect(clippy::case_sensitive_file_extension_comparisons, reason = "Desired here")]
 		if path.file_name().unwrap().to_str().unwrap().ends_with(".old") {
 			fs::rename(path.clone(), path.with_extension("")).unwrap();
 		}
@@ -317,8 +317,7 @@ mod test_actions {
 	use super::*;
 	
 	//		upgrade_app_v1_to_v2												
-	#[cfg_attr(    feature = "reasons",  allow(clippy::too_many_lines, reason = "Acceptable here"))]
-	#[cfg_attr(not(feature = "reasons"), allow(clippy::too_many_lines))]
+	#[expect(clippy::too_many_lines, reason = "Acceptable here")]
 	#[tokio::test]
 	async fn upgrade_app_v1_to_v2() {
 		//		Build test binaries												

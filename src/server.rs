@@ -76,7 +76,10 @@ use axum::{
 	http::{StatusCode, header::CONTENT_LENGTH, header::CONTENT_TYPE},
 	response::{IntoResponse, Response},
 };
-use core::fmt::{Display, self};
+use core::{
+	error::Error,
+	fmt::{Display, self},
+};
 use ed25519_dalek::Signer;
 use rubedo::{
 	crypto::{Sha256Hash, SigningKey},
@@ -87,7 +90,6 @@ use rubedo::{
 use semver::Version;
 use std::{
 	collections::HashMap,
-	error::Error,
 	fs::File,
 	io::ErrorKind as IoErrorKind,
 	path::PathBuf,
@@ -183,8 +185,7 @@ impl Error for ReleaseError {}
 /// large files, where the memory usage could become a problem and the raw speed
 /// of each download becomes a secondary concern.
 /// 
-#[cfg_attr(    feature = "reasons",  allow(clippy::exhaustive_structs, reason = "Provided for configuration"))]
-#[cfg_attr(not(feature = "reasons"), allow(clippy::exhaustive_structs))]
+#[expect(clippy::exhaustive_structs, reason = "Provided for configuration")]
 #[derive(Clone, Debug)]
 pub struct Config {
 	//		Public properties													
@@ -269,10 +270,9 @@ impl Core {
 	/// * [`ReleaseError::Unreadable`]
 	/// 
 	pub fn new(config: Config) -> Result<Self, ReleaseError> {
-		#[cfg_attr(    feature = "reasons",  allow(clippy::iter_over_hash_type, reason = "Order doesn't matter here"))]
-		#[cfg_attr(not(feature = "reasons"), allow(clippy::iter_over_hash_type))]
+		#[expect(clippy::iter_over_hash_type, reason = "Order doesn't matter here")]
 		for (version, hash) in &config.versions {
-			let path = config.releases.join(&format!("{}-{}", config.appname, version));
+			let path = config.releases.join(format!("{}-{}", config.appname, version));
 			if !path.exists() || !path.is_file() {
 				return Err(ReleaseError::Missing(version.clone(), path));
 			}
@@ -388,8 +388,7 @@ impl Axum {
 	/// 
 	/// * `core`    - The core server instance.
 	/// 
-	#[cfg_attr(    feature = "reasons",  allow(clippy::unused_async, reason = "Consistent and future-proof"))]
-	#[cfg_attr(not(feature = "reasons"), allow(clippy::unused_async))]
+	#[expect(clippy::unused_async, reason = "Consistent and future-proof")]
 	pub async fn get_latest_version(
 		Extension(core): Extension<Arc<Core>>,
 	) -> impl IntoResponse {
@@ -416,14 +415,11 @@ impl Axum {
 	///   - A `404 Not Found` status will be returned if the specified version
 	///     does not exist.
 	/// 
-	#[cfg_attr(    feature = "reasons",  allow(clippy::unused_async, reason = "Consistent and future-proof"))]
-	#[cfg_attr(not(feature = "reasons"), allow(clippy::unused_async))]
+	#[expect(clippy::unused_async, reason = "Consistent and future-proof")]
 	pub async fn get_hash_for_version(
 		Extension(core): Extension<Arc<Core>>,
 		Path(version):   Path<Version>,
 	) -> impl IntoResponse {
-		#[cfg_attr(    feature = "reasons",  allow(clippy::option_if_let_else, reason = "Match is more readable here"))]
-		#[cfg_attr(not(feature = "reasons"), allow(clippy::option_if_let_else))]
 		match core.versions().get(&version) {
 			Some(hash) => Ok(Self::sign_response(&core.config.key, Json(VersionHashResponse {
 				version,
@@ -458,8 +454,7 @@ impl Axum {
 	///     directly, but in a production environment it would be sensible to
 	///     strip it out rather than show it to an end user.
 	/// 
-	#[cfg_attr(    feature = "reasons",  allow(clippy::missing_panics_doc, reason = "Infallible"))]
-	#[cfg_attr(not(feature = "reasons"), allow(clippy::missing_panics_doc))]
+	#[expect(clippy::missing_panics_doc, reason = "Infallible")]
 	pub async fn get_release_file(
 		Extension(core): Extension<Arc<Core>>,
 		Path(version):   Path<Version>,
@@ -500,8 +495,7 @@ impl Axum {
 			}
 			Body::from(contents)
 		};
-		#[cfg_attr(    feature = "reasons",  allow(clippy::unwrap_used, reason = "Infallible"))]
-		#[cfg_attr(not(feature = "reasons"), allow(clippy::unwrap_used))]
+		#[expect(clippy::unwrap_used, reason = "Infallible")]
 		Ok(Response::builder()
 			.status(StatusCode::OK)
 			.header(CONTENT_TYPE,   "application/octet-stream")
@@ -536,10 +530,8 @@ impl Axum {
 	/// * `key`      - The server's private key.
 	/// * `response` - The [`Response`] to sign.
 	/// 
-	#[cfg_attr(    feature = "reasons",  allow(clippy::missing_panics_doc, reason = "Infallible"))]
-	#[cfg_attr(not(feature = "reasons"), allow(clippy::missing_panics_doc))]
-	#[cfg_attr(    feature = "reasons",  allow(clippy::unwrap_used, reason = "Infallible"))]
-	#[cfg_attr(not(feature = "reasons"), allow(clippy::unwrap_used))]
+	#[expect(clippy::missing_panics_doc, reason = "Infallible")]
+	#[expect(clippy::unwrap_used,        reason = "Infallible")]
 	#[must_use]
 	pub fn sign_response(key: &SigningKey, mut response: Response) -> Response {
 		let unpacked_response   = response.unpack().unwrap();

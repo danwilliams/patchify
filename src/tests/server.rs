@@ -36,8 +36,7 @@ const VERSION_DATA: [(Version, usize, &[u8]); 5] = [
 
 //		setup_core																
 fn setup_core(releases_dir: &TempDir) -> Result<Core, ReleaseError> {
-	#[cfg_attr(    feature = "reasons",  allow(clippy::pattern_type_mismatch, reason = "Not resolvable"))]
-	#[cfg_attr(not(feature = "reasons"), allow(clippy::pattern_type_mismatch))]
+	#[expect(clippy::pattern_type_mismatch, reason = "Not resolvable")]
 	Core::new(Config {
 		appname:  s!("test"),
 		key:      generate_new_private_key(),
@@ -56,7 +55,7 @@ fn setup_core(releases_dir: &TempDir) -> Result<Core, ReleaseError> {
 fn setup_files() -> TempDir {
 	let releases_dir = tempdir().unwrap();
 	for (version, repetitions, data) in VERSION_DATA {
-		let path     = releases_dir.path().join(&format!("test-{version}"));
+		let path     = releases_dir.path().join(format!("test-{version}"));
 		let mut file = File::create(&path).unwrap();
 		file.write_all(&data.repeat(repetitions)).unwrap();
 	}
