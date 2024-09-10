@@ -5,6 +5,7 @@ description  = "Support for running applications to automatically update themsel
 categories   = ["config", "filesystem"]
 keywords     = ["auto-update", "library", "updater"]
 edition      = "2021"
+rust-version = "1.81.0"
 license      = "MIT"
 authors      = ["Dan Williams <dan@dotfive.co.uk>"]
 repository   = "https://github.com/danwilliams/patchify"
