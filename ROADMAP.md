@@ -83,6 +83,11 @@
 
 ## Version 0.2.0
 
+  - Maintenance release
+
+
+## Version 0.3.0
+
 ### Server
 
   - [ ] **Tracking**
