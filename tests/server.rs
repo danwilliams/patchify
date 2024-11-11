@@ -4,6 +4,7 @@
 #![allow(
 	non_snake_case,
 	unreachable_pub,
+	clippy::arithmetic_side_effects,
 	clippy::cast_lossless,
 	clippy::cast_precision_loss,
 	clippy::cognitive_complexity,
@@ -21,6 +22,7 @@
 	clippy::panic,
 	clippy::print_stdout,
 	clippy::tests_outside_test_module,
+	clippy::too_many_lines,
 	clippy::unwrap_in_result,
 	clippy::unwrap_used,
 	reason = "Not useful in tests"
