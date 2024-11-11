@@ -1,5 +1,11 @@
 # Patchify
 
+![Rust](https://img.shields.io/badge/Rust-1.81%2B-b7410e?style=flat&logo=rust&logoColor=white&labelColor=b7410e)
+[![Crate version](https://img.shields.io/crates/v/patchify?style=flat)](https://crates.io/crates/patchify)
+[![CI](https://img.shields.io/github/actions/workflow/status/danwilliams/patchify/ci.yml?style=flat&logo=github&logoColor=white&label=build%2Ftest)](https://github.com/danwilliams/patchify/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/docsrs/patchify?style=flat&logo=docs.rs&logoColor=white)](https://docs.rs/crate/patchify/latest)
+![License](https://img.shields.io/github/license/danwilliams/patchify?style=flat)
+
 The Patchify crate is an auto-update library, providing the ability for Rust
 applications to automatically update themselves.
 
