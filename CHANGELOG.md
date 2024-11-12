@@ -2,6 +2,7 @@
 
 [Axum]:                https://crates.io/crates/axum
 [Hyper]:               https://crates.io/crates/hyper
+[Sham]:                https://crates.io/crates/sham
 [Keep a Changelog]:    https://keepachangelog.com/en/1.0.0/
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
 
@@ -9,6 +10,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog][], and this project adheres to
 [Semantic Versioning][].
+
+
+## 0.2.1 (12 November 2024)
+
+### Changed
+
+  - Implemented `ThisError` for error types
+  - Implemented [Sham][] for `std_process`
+  - Implemented [Sham][] for `reqwest`
+  - Updated lint configuration for Rust 1.82
+  - Updated crate dependencies
 
 
 ## 0.2.0 (10 September 2024)
