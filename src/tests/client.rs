@@ -7,17 +7,18 @@ use crate::common::utils::*;
 use crate::mocks::{
 	MockSubscriber,
 	Subscriber,
-	reqwest::*,
-	std_env::*,
+	reqwest::{create_mock_binary_response, create_mock_response},
+	std_env::MOCK_EXE,
 };
 use assert_json_diff::assert_json_eq;
 use claims::{assert_err_eq, assert_ok, assert_none, assert_some};
 use futures_util::future::FutureExt;
 use parking_lot::ReentrantMutexGuard;
-use reqwest::{StatusCode, header::HeaderMap};
+use reqwest::StatusCode;
 use rubedo::std::ByteSized;
 use serde_json::{Value as JsonValue, json};
 use core::cell::RefCell;
+use sham::reqwest::{MockClient, create_mock_client, create_mock_response as create_sham_response};
 use std::{
 	fs::{File, self},
 	io::Write,
@@ -389,6 +390,8 @@ mod updater_public {
 
 #[cfg(test)]
 mod updater_private {
+	use sham::reqwest::MockError;
+	use crate::mocks::reqwest::ResponseSignature;
 	use super::*;
 	
 	//		check_for_updates													
@@ -410,23 +413,26 @@ mod updater_private {
 			"hash":    hex::encode(Sha256::digest(payload)),
 		}).to_string();
 		let (mock_response1, public_key) = create_mock_response(
+			url1,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json1.len()),
-			Ok(json1),
+			Ok(&json1),
 			&ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_response2 = create_mock_binary_response(
+			url2,
 			StatusCode::OK,
 			Some("application/octet-stream"),
 			Some(payload.len()),
 			Ok(payload),
 		);
 		let (mock_response3, _public_key) = create_mock_response(
+			url3,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json2.len()),
-			Ok(json2),
+			Ok(&json2),
 			&ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_client = create_mock_client(vec![
@@ -478,10 +484,11 @@ mod updater_private {
 			"version": s!("1.0.0"),
 		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let mock_client = create_mock_client(vec![
@@ -507,13 +514,15 @@ mod updater_private {
 			"version": s!("2.3.4"),
 		}).to_string();
 		let (mock_response1, public_key) = create_mock_response(
+			url1,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let mock_response2 = create_mock_binary_response(
+			url2,
 			StatusCode::OK,
 			//	Intentionally-incorrect content type, to make the process fail
 			Some("text/plain"),
@@ -544,13 +553,15 @@ mod updater_private {
 			"version": s!("2.3.4"),
 		}).to_string();
 		let (mock_response1, public_key) = create_mock_response(
+			url1,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let mock_response2 = create_mock_binary_response(
+			url2,
 			StatusCode::OK,
 			Some("application/octet-stream"),
 			//	Intentionally-incorrect content length, to make the process fail
@@ -588,23 +599,26 @@ mod updater_private {
 			"hash":    hex::encode(Sha256::digest("Some other payload")),
 		}).to_string();
 		let (mock_response1, public_key) = create_mock_response(
+			url1,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json1.len()),
-			Ok(json1),
+			Ok(&json1),
 			&ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_response2 = create_mock_binary_response(
+			url2,
 			StatusCode::OK,
 			Some("application/octet-stream"),
 			Some(payload.len()),
 			Ok(payload),
 		);
 		let (mock_response3, _public_key) = create_mock_response(
+			url3,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json2.len()),
-			Ok(json2),
+			Ok(&json2),
 			&ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_client = create_mock_client(vec![
@@ -638,23 +652,26 @@ mod updater_private {
 			"hash":    hex::encode(Sha256::digest(payload)),
 		}).to_string();
 		let (mock_response1, public_key) = create_mock_response(
+			url1,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json1.len()),
-			Ok(json1),
+			Ok(&json1),
 			&ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_response2 = create_mock_binary_response(
+			url2,
 			StatusCode::OK,
 			Some("application/octet-stream"),
 			Some(payload.len()),
 			Ok(payload),
 		);
 		let (mock_response3, _public_key) = create_mock_response(
+			url3,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json2.len()),
-			Ok(json2),
+			Ok(&json2),
 			&ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_client = create_mock_client(vec![
@@ -692,23 +709,26 @@ mod updater_private {
 			"hash":    hex::encode(Sha256::digest(payload)),
 		}).to_string();
 		let (mock_response1, public_key) = create_mock_response(
+			url1,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json1.len()),
-			Ok(json1),
+			Ok(&json1),
 			&ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_response2 = create_mock_binary_response(
+			url2,
 			StatusCode::OK,
 			Some("application/octet-stream"),
 			Some(payload.len()),
 			Ok(payload),
 		);
 		let (mock_response3, _public_key) = create_mock_response(
+			url3,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json2.len()),
-			Ok(json2),
+			Ok(&json2),
 			&ResponseSignature::GenerateUsing(private_key.clone()),
 		);
 		let mock_client = create_mock_client(vec![
@@ -741,6 +761,7 @@ mod updater_private {
 		let url           = "https://api.example.com/api/releases/2.3.4";
 		let payload       = b"Test payload";
 		let mock_response = create_mock_binary_response(
+			url,
 			StatusCode::OK,
 			Some("application/octet-stream"),
 			Some(payload.len()),
@@ -781,6 +802,7 @@ mod updater_private {
 		let expected_content_type = s!("application/octet-stream");
 		let payload               = b"Test payload";
 		let mock_response         = create_mock_binary_response(
+			url,
 			StatusCode::OK,
 			Some(content_type),
 			Some(payload.len()),
@@ -808,6 +830,7 @@ mod updater_private {
 		let content_len           = payload.len();
 		let expected_content_len  = payload.len() + 1;
 		let mock_response         = create_mock_binary_response(
+			url,
 			StatusCode::OK,
 			Some(content_type),
 			Some(expected_content_len),
@@ -835,6 +858,7 @@ mod updater_private {
 		let content_len           = payload.len();
 		let expected_content_len  = payload.len() - 1;
 		let mock_response         = create_mock_binary_response(
+			url,
 			StatusCode::OK,
 			Some(content_type),
 			Some(expected_content_len),
@@ -865,10 +889,11 @@ mod updater_private {
 			"hash":    hex::encode(hash),
 		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let mock_client = create_mock_client(vec![
@@ -893,10 +918,11 @@ mod updater_private {
 			"hash":    hex::encode(other_hash),
 		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let mock_client = create_mock_client(vec![
@@ -923,10 +949,11 @@ mod updater_private {
 			"hash":    hex::encode(hash),
 		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let mock_client = create_mock_client(vec![
@@ -951,10 +978,11 @@ mod updater_private {
 			"version": s!("3.3.3"),
 		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let mock_client = create_mock_client(vec![
@@ -982,10 +1010,11 @@ mod updater_private {
 			"version": s!("3.3.3"),
 		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			status,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let mock_client = create_mock_client(vec![
@@ -1006,7 +1035,7 @@ mod updater_private {
 		let url         = "https://api.example.com/api/latest";
 		let err_msg     = "Mocked Reqwest error";
 		let mock_client = create_mock_client(vec![
-			(url, Err(MockError {})),
+			(url, Err(MockError::default())),
 		]);
 		let updater = setup_safe_updater(
 			Version::new(1, 0, 0),
@@ -1042,10 +1071,11 @@ mod updater_private {
 			"version": version.to_string(),
 		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let updater = setup_safe_updater(
@@ -1067,10 +1097,11 @@ mod updater_private {
 			"hash":    hash,
 		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let updater = setup_safe_updater(
@@ -1091,10 +1122,11 @@ mod updater_private {
 			"version": s!("3.3.3"),
 		}).to_string();
 		let (mock_response, _public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let updater = setup_safe_updater(
@@ -1111,10 +1143,11 @@ mod updater_private {
 	async fn decode_and_verify__err_invalid_body() {
 		let url                         = "https://api.example.com/api/latest";
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some("application/json"),
 			None,
-			Err(MockError {}),
+			Err(MockError::default()),
 			&ResponseSignature::Use(s!("dummy signature")),
 		);
 		let updater = setup_safe_updater(
@@ -1132,10 +1165,11 @@ mod updater_private {
 		let url                         = "https://api.example.com/api/latest";
 		let json                        = s!("{invalid json: 3.3.3");
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let updater = setup_safe_updater(
@@ -1156,10 +1190,11 @@ mod updater_private {
 			"version": s!("3.3.3"),
 		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Use(signature.clone()),
 		);
 		let updater = setup_safe_updater(
@@ -1179,10 +1214,11 @@ mod updater_private {
 			"version": s!("3.3.3"),
 		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some("application/json"),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Omit,
 		);
 		let updater = setup_safe_updater(
@@ -1204,10 +1240,11 @@ mod updater_private {
 			"version": s!("3.3.3"),
 		}).to_string();
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some(content_type),
 			Some(json.len()),
-			Ok(json),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let updater = setup_safe_updater(
@@ -1230,10 +1267,11 @@ mod updater_private {
 		let content_len                 = json.len();
 		let expected_content_len        = json.len() + 1;
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some(content_type),
 			Some(expected_content_len),
-			Ok(json.clone()),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let updater = setup_safe_updater(
@@ -1256,10 +1294,11 @@ mod updater_private {
 		let content_len                 = json.len();
 		let expected_content_len        = json.len() - 1;
 		let (mock_response, public_key) = create_mock_response(
+			url,
 			StatusCode::OK,
 			Some(content_type),
 			Some(expected_content_len),
-			Ok(json.clone()),
+			Ok(&json),
 			&ResponseSignature::Generate,
 		);
 		let updater = setup_safe_updater(
@@ -1361,34 +1400,33 @@ mod updater_private {
 //		Functions																
 #[cfg(test)]
 mod functions {
+	use std::collections::HashMap;
 	use super::*;
 	
 	//		get_header															
 	#[test]
 	fn get_header__string() {
-		let mock_response = MockResponse {
-			status:  StatusCode::OK,
-			headers: {
-				let mut headers = HeaderMap::new();
-				drop(headers.insert(CONTENT_TYPE, "test".parse().unwrap()));
-				headers
-			},
-			body:    Ok(Arc::new("Test body".into())),
-		};
+		let mock_response = create_sham_response(
+			"http://127.0.0.1",
+			StatusCode::OK,
+			Some("text/plain"),
+			Some("Test body".len()),
+			HashMap::<String, String>::new(),
+			Ok("Test body".as_ref()),
+		);
 		let content_type: String = get_header(&mock_response, CONTENT_TYPE);
-		assert_eq!(content_type, s!("test"));
+		assert_eq!(content_type, s!("text/plain"));
 	}
 	#[test]
 	fn get_header__integer() {
-		let mock_response = MockResponse {
-			status:  StatusCode::OK,
-			headers: {
-				let mut headers = HeaderMap::new();
-				drop(headers.insert(CONTENT_LENGTH, "1234".parse().unwrap()));
-				headers
-			},
-			body:    Ok(Arc::new("Test body".into())),
-		};
+		let mock_response = create_sham_response(
+			"http://127.0.0.1",
+			StatusCode::OK,
+			Some("text/plain"),
+			Some(1234),
+			HashMap::<String, String>::new(),
+			Ok("Test body".as_ref()),
+		);
 		let content_length: usize = get_header(&mock_response, CONTENT_LENGTH);
 		assert_eq!(content_length, 1234);
 	}

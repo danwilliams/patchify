@@ -91,12 +91,12 @@ use ::{
 	},
 };
 #[cfg(test)]
-use crate::mocks::{
-	reqwest::{Client as HttpClient, MockClient as Client, MockResponse as Response, RequestBuilder},
-	std_env::mock_current_exe as current_exe,
-};
+use crate::mocks::std_env::mock_current_exe as current_exe;
 #[cfg(test)]
-use sham::std_process::{FakeCommand as Command, MockStdio as Stdio, mock_exit as exit};
+use sham::{
+	reqwest::{MockClient as Client, MockResponse as Response},
+	std_process::{FakeCommand as Command, MockStdio as Stdio, mock_exit as exit}
+};
 
 
 
