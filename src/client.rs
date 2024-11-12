@@ -94,8 +94,9 @@ use ::{
 use crate::mocks::{
 	reqwest::{Client as HttpClient, MockClient as Client, MockResponse as Response, RequestBuilder},
 	std_env::mock_current_exe as current_exe,
-	std_process::{FakeCommand as Command, MockStdio as Stdio, mock_exit as exit},
 };
+#[cfg(test)]
+use sham::std_process::{FakeCommand as Command, MockStdio as Stdio, mock_exit as exit};
 
 
 

@@ -8,10 +8,6 @@ pub mod reqwest;
 #[path = "mocks/std_env.rs"]
 pub mod std_env;
 
-#[cfg(test)]
-#[path = "mocks/std_process.rs"]
-pub mod std_process;
-
 
 
 //		Packages
