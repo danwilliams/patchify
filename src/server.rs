@@ -76,10 +76,6 @@ use axum::{
 	http::{StatusCode, header::CONTENT_LENGTH, header::CONTENT_TYPE},
 	response::{IntoResponse, Response},
 };
-use core::{
-	error::Error,
-	fmt::{Display, self},
-};
 use ed25519_dalek::Signer;
 use rubedo::{
 	crypto::{Sha256Hash, SigningKey},
@@ -95,6 +91,7 @@ use std::{
 	path::PathBuf,
 	sync::Arc,
 };
+use thiserror::Error as ThisError;
 use tokio::{
 	fs::File as AsyncFile,
 	io::{AsyncReadExt, BufReader},
@@ -108,33 +105,21 @@ use tracing::error;
 
 //		ReleaseError															
 /// Errors that can occur in relation to releases.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, ThisError)]
 #[non_exhaustive]
 pub enum ReleaseError {
 	/// A release file failed the SHA256 hash check.
+	#[error("The release file for version {0} failed hash verification: {1:?}")]
 	Invalid(Version, PathBuf),
 	
 	/// A release file does not exist.
+	#[error("The release file for version {0} is missing: {1:?}")]
 	Missing(Version, PathBuf),
 	
 	/// A release file is unreadable.
+	#[error("The release file for version {0} cannot be read: {1}: {2}")]
 	Unreadable(Version, IoErrorKind, String),
 }
-
-//󰭅		Display																	
-impl Display for ReleaseError {
-	//		fmt																	
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{}", match *self {
-			Self::Invalid(ref version, ref path)            => format!("The release file for version {version} failed hash verification: {path:?}"),
-			Self::Missing(ref version, ref path)            => format!("The release file for version {version} is missing: {path:?}"),
-			Self::Unreadable(ref version, ref err, ref msg) => format!("The release file for version {version} cannot be read: {err}: {msg}"),
-		})
-	}
-}
-
-//󰭅		Error																	
-impl Error for ReleaseError {}
 
 
 

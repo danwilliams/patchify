@@ -41,7 +41,6 @@ mod tests;
 
 use crate::responses::{LatestVersionResponse, VersionHashResponse};
 use core::{
-	error::Error,
 	fmt::{Display, self},
 	str::FromStr,
 	sync::atomic::{AtomicUsize, Ordering},
@@ -71,6 +70,7 @@ use std::{
 	sync::Arc,
 };
 use tempfile::{tempdir, TempDir};
+use thiserror::Error as ThisError;
 use tokio::{
 	fs::{File as AsyncFile, self},
 	io::AsyncWriteExt,
@@ -150,115 +150,103 @@ impl Display for Status {
 
 //		UpdaterError															
 /// Errors that can occur when trying to update.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, ThisError)]
 #[non_exhaustive]
 pub enum UpdaterError {
 	/// Verification of the SHA256 hash of the downloaded file against the
 	/// server's hash data failed.
+	#[error("Failed hash verification for downloaded version {0}")]
 	FailedHashVerification(Version),
 	
 	/// Verification of the HTTP response body against the signature header
 	/// using the configured public key failed.
+	#[error("Failed signature verification for response from {0}")]
 	FailedSignatureVerification(Url),
 	
 	/// An HTTP error occurred, i.e. the status code returned is not `200`. No
 	/// other codes are expected, as this library only performs `GET` requests.
+	#[error("HTTP status code {1} received when calling {0}")]
 	HttpError(Url, StatusCode),
 	
 	/// The HTTP request to the API server failed.
+	#[error("HTTP request to {0} failed: {1}")]
 	HttpRequestFailed(Url, String),
 	
 	/// The response from the API server could not be decoded. This could be due
 	/// to malformed text that is not valid UTF-8 for endpoints that return text
 	/// or JSON, or a truncated response.
+	#[error("Invalid HTTP body received from {0}")]
 	InvalidBody(Url),
 	
 	/// The response from the API server could not be parsed. This could be due
 	/// to invalid JSON, or the JSON not matching the expected structure.
+	#[error("Invalid payload received from {0}")]
 	InvalidPayload(Url),
 	
 	/// The signature header from the API server could not be decoded.
+	#[error(r#"Invalid signature header "{1}" received from {0}"#)]
 	InvalidSignature(Url, String),
 	
 	/// The URL specified to use to make an HTTP request is invalid. The API URL
 	/// should be okay due to type validation, so something must have happened
 	/// when adding a particular endpoint to it, as the outcome is invalid.
+	#[error("Invalid URL specified: {0} plus {1}")]
 	InvalidUrl(Url, String),
 	
 	/// The HTTP response body from the API server is shorter than expected.
+	#[error("HTTP response body from {0} is shorter than expected: {1} < {2}")]
 	MissingData(Url, usize, usize),
 	
 	/// The HTTP response from the API server does not contain a signature
 	/// header.
+	#[error("HTTP response from {0} does not contain a signature header")]
 	MissingSignature(Url),
 	
 	/// The HTTP response body from the API server is longer than expected.
+	#[error("HTTP response body from {0} is longer than expected: {1} > {2}")]
 	TooMuchData(Url, usize, usize),
 	
 	/// A problem was encountered when trying to create a file for the download.
+	#[error(r#"Unable to create download file "{0:?}": {1}"#)]
 	UnableToCreateDownload(PathBuf, String),
 	
 	/// A problem was encountered when trying to create a temporary directory.
+	#[error("Unable to create temporary directory: {0}")]
 	UnableToCreateTempDir(String),
 	
 	/// A problem was encountered when trying to get the metadata for the new
 	/// executable.
+	#[error(r#"Unable to get file metadata for the new executable "{0:?}": {1}"#)]
 	UnableToGetFileMetadata(PathBuf, String),
 	
 	/// A problem was encountered when trying to move the new executable into
 	/// the place of the current running application.
+	#[error("Unable to move the new executable {0:?}: {1}")]
 	UnableToMoveNewExe(PathBuf, String),
 	
 	/// A problem was encountered when trying to obtain the path of the current
 	/// running application.
+	#[error("Unable to obtain current executable path: {0}")]
 	UnableToObtainCurrentExePath(String),
 	
 	/// A problem was encountered when trying to rename the current running
 	/// application.
+	#[error("Unable to rename the current executable {0:?}: {1}")]
 	UnableToRenameCurrentExe(PathBuf, String),
 	
 	/// A problem was encountered when trying to set the new executable's file
 	/// permissions.
+	#[error(r#"Unable to set file permissions for the new executable "{0:?}": {1}"#)]
 	UnableToSetFilePermissions(PathBuf, String),
 	
 	/// A problem was encountered when trying to write to the download file.
+	#[error(r#"Unable to write to download file "{0:?}": {1}"#)]
 	UnableToWriteToDownload(PathBuf, String),
 	
 	/// The content type of the response is not as expected.
+	#[error(r#"HTTP response from {0} had unexpected content type: "{1}", expected: "{2}""#)]
 	UnexpectedContentType(Url, String, String),
 }
-
-//󰭅		Display																	
-impl Display for UpdaterError {
-	//		fmt																	
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{}", match *self {
-			Self::FailedHashVerification(ref version)                     => format!(  "Failed hash verification for downloaded version {version}"),
-			Self::FailedSignatureVerification(ref url)                    => format!(  "Failed signature verification for response from {url}"),
-			Self::HttpError(ref url, ref status)                          => format!(  "HTTP status code {status} received when calling {url}"),
-			Self::HttpRequestFailed(ref url, ref msg)                     => format!(  "HTTP request to {url} failed: {msg}"),
-			Self::InvalidBody(ref url)                                    => format!(  "Invalid HTTP body received from {url}"),
-			Self::InvalidPayload(ref url)                                 => format!(  "Invalid payload received from {url}"),
-			Self::InvalidSignature(ref url, ref signature)                => format!(r#"Invalid signature header "{signature}" received from {url}"#),
-			Self::InvalidUrl(ref base, ref endpoint)                      => format!(  "Invalid URL specified: {base} plus {endpoint}"),
-			Self::MissingData(ref url, ref received, ref expected)        => format!(  "HTTP response body from {url} is shorter than expected: {received} < {expected}"),
-			Self::MissingSignature(ref url)                               => format!(  "HTTP response from {url} does not contain a signature header"),
-			Self::TooMuchData(ref url, ref received, ref expected)        => format!(  "HTTP response body from {url} is longer than expected: {received} > {expected}"),
-			Self::UnableToCreateDownload(ref path, ref msg)               => format!(r#"Unable to create download file "{path:?}": {msg}"#),
-			Self::UnableToCreateTempDir(ref msg)                          => format!(  "Unable to create temporary directory: {msg}"),
-			Self::UnableToGetFileMetadata(ref path, ref msg)              => format!(r#"Unable to get file metadata for the new executable "{path:?}": {msg}"#),
-			Self::UnableToMoveNewExe(ref path, ref msg)                   => format!(  "Unable to move the new executable {path:?}: {msg}"),
-			Self::UnableToObtainCurrentExePath(ref msg)                   => format!(  "Unable to obtain current executable path: {msg}"),
-			Self::UnableToRenameCurrentExe(ref path, ref msg)             => format!(  "Unable to rename the current executable {path:?}: {msg}"),
-			Self::UnableToSetFilePermissions(ref path, ref msg)           => format!(r#"Unable to set file permissions for the new executable "{path:?}": {msg}"#),
-			Self::UnableToWriteToDownload(ref path, ref msg)              => format!(r#"Unable to write to download file "{path:?}": {msg}"#),
-			Self::UnexpectedContentType(ref url, ref value, ref expected) => format!(r#"HTTP response from {url} had unexpected content type: "{value}", expected: "{expected}""#),
-		})
-	}
-}
-
-//󰭅		Error																	
-impl Error for UpdaterError {}
 
 
 
