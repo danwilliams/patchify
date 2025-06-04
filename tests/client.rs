@@ -32,14 +32,14 @@
 
 
 
-//		Modules
+//		Modules																											
 
 #[expect(unused, reason = "Shared test code")]
 mod common;
 
 
 
-//		Packages
+//		Packages																										
 
 use crate::common::{client::request, utils::*};
 use core::{
@@ -76,13 +76,13 @@ use wiremock::{
 
 
 
-//		Statics
+//		Statics																											
 
 static EMPTY_PUBLIC_KEY: LazyLock<VerifyingKey> = LazyLock::new(|| VerifyingKey::from_bytes([0; 32]));
 
 
 
-//		Tests
+//		Tests																											
 
 #[cfg(test)]
 mod foundation {

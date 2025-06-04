@@ -1,6 +1,6 @@
 //! Common shared client functionality for tests and examples.
 
-//		Packages
+//		Packages																										
 
 use bytes::Bytes;
 use ed25519_dalek::Signature;
@@ -10,7 +10,7 @@ use rubedo::crypto::VerifyingKey;
 
 
 
-//		Functions
+//		Functions																										
 
 //		request																	
 /// Sends a GET request to the provided URL and returns the response.

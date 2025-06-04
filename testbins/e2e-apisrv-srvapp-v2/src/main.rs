@@ -29,7 +29,7 @@
 
 
 
-//		Modules
+//		Modules																											
 
 #[allow(unused)]
 #[path = "../../../tests/common/mod.rs"]
@@ -37,7 +37,7 @@ mod common;
 
 
 
-//		Packages
+//		Packages																										
 
 use common::server::{initialize, create_basic_server, get_ping};
 use axum::{Router, routing::get};
@@ -48,7 +48,7 @@ use tokio::signal;
 
 
 
-//		Structs
+//		Structs																											
 
 //		Config																	
 #[derive(Deserialize)]
@@ -59,7 +59,7 @@ pub struct Config {
 
 
 
-//		Functions
+//		Functions																										
 
 //		main																	
 #[tokio::main]

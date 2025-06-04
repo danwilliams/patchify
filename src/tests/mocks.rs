@@ -1,4 +1,4 @@
-//		Modules
+//		Modules																											
 
 #[cfg(test)]
 #[path = "mocks/reqwest.rs"]
@@ -10,14 +10,14 @@ pub mod std_env;
 
 
 
-//		Packages
+//		Packages																										
 
 use crate::client::Status;
 use mockall::automock;
 
 
 
-//		Traits
+//		Traits																											
 
 //§		Subscriber																
 #[automock]

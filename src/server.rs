@@ -57,7 +57,7 @@
 
 
 
-//		Modules
+//		Modules																											
 
 #[cfg(test)]
 #[path = "tests/server.rs"]
@@ -65,7 +65,7 @@ mod tests;
 
 
 
-//		Packages
+//		Packages																										
 
 use crate::responses::{LatestVersionResponse, VersionHashResponse};
 use axum::{
@@ -101,7 +101,7 @@ use tracing::error;
 
 
 
-//		Enums
+//		Enums																											
 
 //		ReleaseError															
 /// Errors that can occur in relation to releases.
@@ -123,7 +123,7 @@ pub enum ReleaseError {
 
 
 
-//		Structs
+//		Structs																											
 
 //		Config																	
 /// The configuration options for the server.

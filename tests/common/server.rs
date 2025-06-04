@@ -1,6 +1,6 @@
 //! Common shared server functionality for tests and examples.
 
-//		Packages
+//		Packages																										
 
 use crate::common::utils::generate_new_private_key;
 use axum::{
@@ -51,7 +51,7 @@ use tracing_subscriber::{
 
 
 
-//		Constants
+//		Constants																										
 
 /// A list of available versions with their sizes and data.
 pub const VERSION_DATA: [(Version, usize, &[u8]); 5] = [
@@ -64,7 +64,7 @@ pub const VERSION_DATA: [(Version, usize, &[u8]); 5] = [
 
 
 
-//		Statics
+//		Statics																											
 
 /// A global initialization lock.
 pub static INIT: Once                 = Once::new();
@@ -74,7 +74,7 @@ pub static KEY:  OnceLock<SigningKey> = OnceLock::new();
 
 
 
-//		Functions
+//		Functions																										
 
 //		initialize																
 /// Initializes the global logger and signing key.

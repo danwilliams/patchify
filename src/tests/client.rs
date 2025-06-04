@@ -1,6 +1,6 @@
 #![allow(clippy::bool_assert_comparison, reason = "Clarity")]
 
-//		Packages
+//		Packages																										
 
 use super::*;
 use crate::common::utils::*;
@@ -32,13 +32,13 @@ use tempfile::{TempDir, tempdir};
 
 
 
-//		Statics
+//		Statics																											
 
 static EMPTY_PUBLIC_KEY: LazyLock<VerifyingKey> = LazyLock::new(|| VerifyingKey::from_bytes([0; 32]));
 
 
 
-//		Common
+//		Common																											
 
 //		setup_safe_updater														
 /// This function sets up a safe `Updater` instance for testing.
@@ -96,7 +96,7 @@ fn setup_files<'lock>() -> (
 
 
 
-//		Tests
+//		Tests																											
 
 //		Updater																	
 #[cfg(test)]

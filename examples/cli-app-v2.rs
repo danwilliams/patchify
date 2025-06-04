@@ -31,7 +31,7 @@
 
 
 
-//		Packages
+//		Packages																										
 
 use core::time::Duration;
 use figment::{
@@ -56,7 +56,7 @@ use tracing_subscriber::{
 
 
 
-//		Structs
+//		Structs																											
 
 //		Config																	
 /// The main configuration options for the application.
@@ -86,7 +86,7 @@ pub struct Config {
 
 
 
-//		Functions
+//		Functions																										
 
 //		main																	
 #[tokio::main]

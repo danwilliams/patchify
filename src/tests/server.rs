@@ -1,4 +1,4 @@
-//		Packages
+//		Packages																										
 
 use super::*;
 use crate::common::utils::*;
@@ -20,7 +20,7 @@ use velcro::hash_map;
 
 
 
-//		Constants
+//		Constants																										
 
 const VERSION_DATA: [(Version, usize, &[u8]); 5] = [
 	(Version::new(1, 0, 0),           1, b"foo"),
@@ -32,7 +32,7 @@ const VERSION_DATA: [(Version, usize, &[u8]); 5] = [
 
 
 
-//		Common
+//		Common																											
 
 //		setup_core																
 fn setup_core(releases_dir: &TempDir) -> Result<Core, ReleaseError> {
@@ -64,7 +64,7 @@ fn setup_files() -> TempDir {
 
 
 
-//		Tests
+//		Tests																											
 
 //		Core																	
 #[cfg(test)]

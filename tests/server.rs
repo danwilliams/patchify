@@ -32,13 +32,13 @@
 
 
 
-//		Modules
+//		Modules																											
 
 mod common;
 
 
 
-//		Packages
+//		Packages																										
 
 use crate::common::{client::*, server::*, utils::*};
 use assert_json_diff::assert_json_eq;
@@ -57,7 +57,7 @@ use std::{
 
 
 
-//		Tests
+//		Tests																											
 
 #[cfg(test)]
 mod endpoints {

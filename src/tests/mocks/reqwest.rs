@@ -16,7 +16,7 @@
 
 
 
-//		Packages
+//		Packages																										
 
 use std::collections::HashMap;
 use crate::common::utils::*;
@@ -30,7 +30,7 @@ use sham::reqwest::{MockError, MockResponse, create_mock_response as create_sham
 
 
 
-//		Enums
+//		Enums																											
 
 //		ResponseSignature														
 #[expect(variant_size_differences, reason = "Doesn't matter here")]
@@ -43,7 +43,7 @@ pub enum ResponseSignature {
 
 
 
-//		Functions
+//		Functions																										
 
 //		create_mock_response													
 pub fn create_mock_response<U: IntoUrl, S: Into<String>>(

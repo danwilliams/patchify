@@ -29,7 +29,7 @@
 
 
 
-//		Modules
+//		Modules																											
 
 #[cfg(test)]
 #[path = "tests/client.rs"]
@@ -37,7 +37,7 @@ mod tests;
 
 
 
-//		Packages
+//		Packages																										
 
 use crate::responses::{LatestVersionResponse, VersionHashResponse};
 use core::{
@@ -100,7 +100,7 @@ use sham::{
 
 
 
-//		Enums
+//		Enums																											
 
 //		Status																	
 /// The possible statuses that an [`Updater`] can have.
@@ -251,7 +251,7 @@ pub enum UpdaterError {
 
 
 
-//		Structs
+//		Structs																											
 
 //		Config																	
 /// The configuration options for the client.
@@ -870,7 +870,7 @@ impl Drop for Updater {
 
 
 
-//		Functions
+//		Functions																										
 
 //		get_header																
 /// Gets a header from an HTTP response.

@@ -1,6 +1,6 @@
 //! This module provides functionality that is shared by client and server.
 
-//		Modules
+//		Modules																											
 
 #[cfg(test)]
 #[path = "tests/responses.rs"]
@@ -8,7 +8,7 @@ mod tests;
 
 
 
-//		Packages
+//		Packages																										
 
 use rubedo::crypto::Sha256Hash;
 use semver::Version;
@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 
 
-//		Structs
+//		Structs																											
 
 //		LatestVersionResponse													
 /// The application version returned by the `latest` endpoint.

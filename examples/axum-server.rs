@@ -32,7 +32,7 @@
 
 
 
-//		Modules
+//		Modules																											
 
 #[expect(unused, reason = "Shared test code")]
 #[path = "../tests/common/mod.rs"]
@@ -40,7 +40,7 @@ mod common;
 
 
 
-//		Packages
+//		Packages																										
 
 use common::server::{initialize, create_patchify_api_server, patchify_api_routes};
 use core::net::{IpAddr, SocketAddr};
@@ -60,7 +60,7 @@ use tokio::signal;
 
 
 
-//		Structs
+//		Structs																											
 
 //		Config																	
 /// The main configuration options for the application.
@@ -90,7 +90,7 @@ pub struct Config {
 
 
 
-//		Functions
+//		Functions																										
 
 //		main																	
 #[tokio::main]

@@ -4,7 +4,7 @@
 
 
 
-//		Global configuration
+//		Global configuration																							
 
 //	Customisations of the standard linting configuration
 #![allow(clippy::multiple_crate_versions, reason = "Cannot resolve all these")]
@@ -38,7 +38,7 @@
 
 
 
-//		Modules
+//		Modules																											
 
 pub mod server;
 pub mod client;
@@ -55,7 +55,7 @@ mod mocks;
 
 
 
-//		Packages
+//		Packages																										
 
 #[cfg(test)]
 mod integration_test_package_usage {

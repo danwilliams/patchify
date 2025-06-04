@@ -18,7 +18,7 @@
 
 
 
-//		Packages
+//		Packages																										
 
 use core::cell::RefCell;
 use parking_lot::ReentrantMutex;
@@ -29,13 +29,13 @@ use std::{
 
 
 
-//		Statics
+//		Statics																											
 
 pub static MOCK_EXE: ReentrantMutex<RefCell<Option<PathBuf>>> = ReentrantMutex::new(RefCell::new(None));
 
 
 
-//		Functions
+//		Functions																										
 
 //		mock_current_exe														
 #[expect(clippy::unnecessary_wraps, reason = "Needed for mock")]
