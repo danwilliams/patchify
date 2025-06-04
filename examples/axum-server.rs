@@ -46,7 +46,7 @@ use common::server::{initialize, create_patchify_api_server, patchify_api_routes
 use core::net::{IpAddr, SocketAddr};
 use figment::{
 	Figment,
-	providers::{Env, Format, Serialized, Toml},
+	providers::{Env, Format as _, Serialized, Toml},
 };
 use rubedo::crypto::Sha256Hash;
 use semver::Version;

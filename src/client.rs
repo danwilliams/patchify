@@ -47,7 +47,7 @@ use core::{
 };
 use ed25519_dalek::Signature;
 use flume::{Sender, self};
-use futures_util::StreamExt;
+use futures_util::StreamExt as _;
 use hex;
 use parking_lot::RwLock;
 use reqwest::{
@@ -61,11 +61,11 @@ use rubedo::{
 };
 use semver::Version;
 use serde::de::DeserializeOwned;
-use sha2::{Sha256, Digest};
+use sha2::{Sha256, Digest as _};
 use std::{
 	env::args,
 	io::Error as IoError,
-	os::unix::fs::PermissionsExt,
+	os::unix::fs::PermissionsExt as _,
 	path::PathBuf,
 	sync::Arc,
 };
@@ -73,7 +73,7 @@ use tempfile::{tempdir, TempDir};
 use thiserror::Error as ThisError;
 use tokio::{
 	fs::{File as AsyncFile, self},
-	io::AsyncWriteExt,
+	io::AsyncWriteExt as _,
 	select,
 	spawn,
 	sync::broadcast::{Receiver as Listener, Sender as Broadcaster, self},
@@ -86,7 +86,7 @@ use ::{
 	reqwest::{Client, Response},
 	std::{
 		env::current_exe,
-		os::unix::process::CommandExt,
+		os::unix::process::CommandExt as _,
 		process::{Command, Stdio, exit},
 	},
 };
@@ -837,12 +837,10 @@ impl Updater {
 	/// option. This behaviour will be considered carefully and improved in
 	/// future when it becomes clearer how to handle it.
 	/// 
-	#[expect(clippy::allow_attributes, reason = "Needed due to false positive")]
 	fn restart(&self) {
 		//	Skip the first argument (current executable name)
 		let args = args().skip(1).collect::<Vec<_>>();
-		#[allow(clippy::needless_borrows_for_generic_args, reason = "False positive")]
-		let err  = Command::new(&self.exe_path.clone())
+		let err  = Command::new(self.exe_path.clone())
 			.args(args)
 			.stdin(Stdio::inherit())
 			.stdout(Stdio::inherit())

@@ -76,11 +76,11 @@ use axum::{
 	http::{StatusCode, header::CONTENT_LENGTH, header::CONTENT_TYPE},
 	response::{IntoResponse, Response},
 };
-use ed25519_dalek::Signer;
+use ed25519_dalek::Signer as _;
 use rubedo::{
 	crypto::{Sha256Hash, SigningKey},
-	http::ResponseExt,
-	std::FileExt,
+	http::ResponseExt as _,
+	std::FileExt as _,
 	sugar::s,
 };
 use semver::Version;
@@ -94,7 +94,7 @@ use std::{
 use thiserror::Error as ThisError;
 use tokio::{
 	fs::File as AsyncFile,
-	io::{AsyncReadExt, BufReader},
+	io::{AsyncReadExt as _, BufReader},
 };
 use tokio_util::io::ReaderStream;
 use tracing::error;

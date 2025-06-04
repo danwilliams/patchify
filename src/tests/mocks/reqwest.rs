@@ -20,7 +20,7 @@
 
 use std::collections::HashMap;
 use crate::common::utils::*;
-use ed25519_dalek::Signer;
+use ed25519_dalek::Signer as _;
 use reqwest::{StatusCode, IntoUrl};
 use rubedo::{
 	crypto::{SigningKey, VerifyingKey},

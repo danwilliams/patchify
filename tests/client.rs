@@ -1,3 +1,5 @@
+//! Client integration tests.
+
 #![allow(unused_crate_dependencies, reason = "Creates a lot of noise")]
 
 //	Lints specifically disabled for integration tests
@@ -44,20 +46,20 @@ use core::{
 	net::SocketAddr,
 	time::Duration,
 };
-use ed25519_dalek::Signer;
+use ed25519_dalek::Signer as _;
 use patchify::client::{Config, Status, Updater};
 use reqwest::StatusCode;
 use rubedo::{
 	crypto::{Sha256Hash, VerifyingKey},
-	std::{ByteSized, FileExt},
+	std::{ByteSized as _, FileExt as _},
 };
 use semver::Version;
 use serde_json::json;
-use sha2::{Sha256, Digest};
+use sha2::{Sha256, Digest as _};
 use std::{
 	env::current_exe,
 	fs::{File, self},
-	io::{BufReader, BufRead},
+	io::{BufReader, BufRead as _},
 	path::PathBuf,
 	process::{Command, Stdio},
 	sync::LazyLock,
@@ -126,6 +128,7 @@ mod foundation {
 		assert_eq!(status,        StatusCode::OK);
 		assert_eq!(body.as_ref(), b"");
 		subproc.kill().unwrap();
+		_ = subproc.wait().unwrap();
 	}
 }
 
@@ -455,6 +458,8 @@ mod test_actions {
 		//		Kill processes													
 		subproc_app.kill().unwrap();
 		subproc_srv.kill().unwrap();
+		_ = subproc_app.wait().unwrap();
+		_ = subproc_srv.wait().unwrap();
 	}
 }
 

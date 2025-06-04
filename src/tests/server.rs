@@ -5,15 +5,15 @@ use crate::common::utils::*;
 use assert_json_diff::assert_json_eq;
 use claims::{assert_err_eq, assert_none};
 use rubedo::{
-	http::{ResponseExt, UnpackedResponse},
+	http::{ResponseExt as _, UnpackedResponse},
 	sugar::s,
-	std::ByteSized,
+	std::ByteSized as _,
 };
 use serde_json::json;
-use sha2::{Sha256, Digest};
+use sha2::{Sha256, Digest as _};
 use std::{
 	fs,
-	io::Write,
+	io::Write as _,
 };
 use tempfile::{TempDir, tempdir};
 use velcro::hash_map;

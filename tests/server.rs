@@ -1,3 +1,5 @@
+//! Server integration tests.
+
 #![allow(unused_crate_dependencies, reason = "Creates a lot of noise")]
 
 //	Lints specifically disabled for integration tests
@@ -47,10 +49,10 @@ use rubedo::{
 };
 use semver::Version;
 use serde_json::{Value as JsonValue, json};
-use sha2::{Sha256, Digest};
+use sha2::{Sha256, Digest as _};
 use std::{
 	fs::{File, self},
-	io::Write,
+	io::Write as _,
 };
 
 

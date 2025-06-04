@@ -36,7 +36,7 @@
 use core::time::Duration;
 use figment::{
 	Figment,
-	providers::{Env, Format, Serialized, Toml},
+	providers::{Env, Format as _, Serialized, Toml},
 };
 use patchify::client::{Config as UpdaterConfig, Updater};
 use rubedo::crypto::VerifyingKey;
@@ -48,10 +48,10 @@ use tokio::signal;
 use tracing::{Level, info};
 use tracing_subscriber::{
 	EnvFilter,
-	fmt::{format::FmtSpan, layer, writer::MakeWriterExt},
-	layer::SubscriberExt,
+	fmt::{format::FmtSpan, layer, writer::MakeWriterExt as _},
+	layer::SubscriberExt as _,
 	registry,
-	util::SubscriberInitExt,
+	util::SubscriberInitExt as _,
 };
 
 

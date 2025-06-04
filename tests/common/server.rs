@@ -21,14 +21,14 @@ use patchify::server::{
 };
 use rubedo::{
 	crypto::{Sha256Hash, SigningKey},
-	std::ByteSized,
+	std::ByteSized as _,
 };
 use semver::Version;
-use sha2::{Sha256, Digest};
+use sha2::{Sha256, Digest as _};
 use std::{
 	collections::HashMap,
 	fs::File,
-	io::{Write, stdout},
+	io::{Write as _, stdout},
 	path::PathBuf,
 	sync::{Arc, Once, OnceLock},
 };
@@ -43,10 +43,10 @@ use tower_http::{
 use tracing::{Level, Span, debug, error};
 use tracing_subscriber::{
 	EnvFilter,
-	fmt::{format::FmtSpan, layer, writer::MakeWriterExt},
-	layer::SubscriberExt,
+	fmt::{format::FmtSpan, layer, writer::MakeWriterExt as _},
+	layer::SubscriberExt as _,
 	registry,
-	util::SubscriberInitExt,
+	util::SubscriberInitExt as _,
 };
 
 

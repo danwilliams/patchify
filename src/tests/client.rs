@@ -6,22 +6,22 @@ use super::*;
 use crate::common::utils::*;
 use crate::mocks::{
 	MockSubscriber,
-	Subscriber,
+	Subscriber as _,
 	reqwest::{create_mock_binary_response, create_mock_response},
 	std_env::MOCK_EXE,
 };
 use assert_json_diff::assert_json_eq;
 use claims::{assert_err_eq, assert_ok, assert_none, assert_some};
-use futures_util::future::FutureExt;
+use futures_util::future::FutureExt as _;
 use parking_lot::ReentrantMutexGuard;
 use reqwest::StatusCode;
-use rubedo::std::ByteSized;
+use rubedo::std::ByteSized as _;
 use serde_json::{Value as JsonValue, json};
 use core::cell::RefCell;
 use sham::reqwest::{MockClient, create_mock_client, create_mock_response as create_sham_response};
 use std::{
 	fs::{File, self},
-	io::Write,
+	io::Write as _,
 	sync::LazyLock,
 };
 use tokio::{
@@ -1349,7 +1349,7 @@ mod updater_private {
 		fs::remove_file(&new_path).unwrap();
 		let err = updater.replace_executable(&new_path).await;
 		assert_err_eq!(err.clone(), UpdaterError::UnableToMoveNewExe(new_path.clone(), s!("No such file or directory (os error 2)")));
-		assert_eq!(err.unwrap_err().to_string(), format!(r#"Unable to move the new executable {new_path:?}: No such file or directory (os error 2)"#));
+		assert_eq!(err.unwrap_err().to_string(), format!(r"Unable to move the new executable {new_path:?}: No such file or directory (os error 2)"));
 		assert!(!exe_path.exists());
 		assert!(old_path.exists());
 		assert!(!new_path.exists());
@@ -1367,7 +1367,7 @@ mod updater_private {
 		fs::remove_file(&exe_path).unwrap();
 		let err = updater.replace_executable(&new_path).await;
 		assert_err_eq!(err.clone(), UpdaterError::UnableToRenameCurrentExe(exe_path.clone(), s!("No such file or directory (os error 2)")));
-		assert_eq!(err.unwrap_err().to_string(), format!(r#"Unable to rename the current executable {exe_path:?}: No such file or directory (os error 2)"#));
+		assert_eq!(err.unwrap_err().to_string(), format!(r"Unable to rename the current executable {exe_path:?}: No such file or directory (os error 2)"));
 		assert!(!exe_path.exists());
 		assert!(!old_path.exists());
 		assert!(new_path.exists());
