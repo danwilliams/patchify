@@ -1,6 +1,6 @@
 [package]
 name          = "patchify"
-version       = "0.2.1"
+version       = "0.2.2"
 description   = "Support for running applications to automatically update themselves"
 categories    = ["config", "filesystem"]
 keywords      = ["auto-update", "library", "updater"]
