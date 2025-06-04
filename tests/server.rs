@@ -159,9 +159,9 @@ mod endpoints {
 		).await;
 		assert_eq!(status,        StatusCode::BAD_REQUEST);
 		assert_eq!(content_type,  Some(s!("text/plain; charset=utf-8")));
-		assert_eq!(content_len,   Some(72));
+		assert_eq!(content_len,   Some(117));
 		assert_eq!(verified,      None);
-		assert_eq!(body.as_ref(), b"Invalid URL: unexpected character 'i' while parsing major version number");
+		assert_eq!(body.as_ref(), b"Invalid URL: Cannot parse `version` with value `invalid`: unexpected character 'i' while parsing major version number");
 	}
 	
 	//		get_releases_version												
@@ -231,9 +231,9 @@ mod endpoints {
 		).await;
 		assert_eq!(status,        StatusCode::BAD_REQUEST);
 		assert_eq!(content_type,  Some(s!("text/plain; charset=utf-8")));
-		assert_eq!(content_len,   Some(72));
+		assert_eq!(content_len,   Some(117));
 		assert_eq!(verified,      None);
-		assert_eq!(body.as_ref(), b"Invalid URL: unexpected character 'i' while parsing major version number");
+		assert_eq!(body.as_ref(), b"Invalid URL: Cannot parse `version` with value `invalid`: unexpected character 'i' while parsing major version number");
 	}
 	#[tokio::test]
 	async fn get_releases_version__missing() {

@@ -203,8 +203,8 @@ pub fn patchify_api_routes() -> Router {
 	Router::new()
 		.route("/api/ping",              get(get_ping))
 		.route("/api/latest",            get(Patchify::get_latest_version))
-		.route("/api/hashes/:version",   get(Patchify::get_hash_for_version))
-		.route("/api/releases/:version", get(Patchify::get_release_file))
+		.route("/api/hashes/{version}",   get(Patchify::get_hash_for_version))
+		.route("/api/releases/{version}", get(Patchify::get_release_file))
 }
 
 //		get_ping																

@@ -348,8 +348,8 @@ impl Core {
 /// let core   = Arc::new(Core::new(config));
 /// let app    = Router::new()
 ///     .route("/api/latest",            get(Axum::get_latest_version))
-///     .route("/api/hashes/:version",   get(Axum::get_hash_for_version))
-///     .route("/api/releases/:version", get(Axum::get_release_file))
+///     .route("/api/hashes/{version}",   get(Axum::get_hash_for_version))
+///     .route("/api/releases/{version}", get(Axum::get_release_file))
 ///     .layer(Extension(core))
 /// ;
 /// ```
